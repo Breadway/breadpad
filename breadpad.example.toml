@@ -1,0 +1,14 @@
+[settings]
+default_type = "note"          # fallback type if classification is skipped
+workspace_tag = true           # tag notes with active Hyprland workspace
+snooze_options = ["15m", "1h", "tomorrow_morning"]
+archive_after_days = 30
+
+[model]
+path = "~/.local/share/breadpad/model/classifier.onnx"
+tokenizer = "~/.local/share/breadpad/model/tokenizer.json"
+execution_provider = "auto"    # auto | npu | vulkan | cpu
+
+[reminders]
+default_morning = "08:00"
+missed_grace_minutes = 60

@@ -1,0 +1,102 @@
+# SVG Icons for breadman
+# Replace the placeholder emojis in breadman/src/main.rs and breadman/src/editor.rs
+# with SVG-backed gtk4::Image widgets once you have the files.
+# All icons should be single-color/symbolic so GTK can recolor them with CSS.
+# Recommended source: Lucide (https://lucide.dev), Phosphor, or Material Symbols.
+
+## Sidebar — navigation items
+
+all-notes.svg
+  Placeholder: 📋
+  Use: "All" view — a stack of pages or a grid of squares
+  Lucide suggestion: layout-grid, files, or layers
+
+calendar-clock.svg
+  Placeholder: 📅
+  Use: "Upcoming" view — calendar with a clock overlay
+  Lucide suggestion: calendar-clock
+
+checkbox.svg
+  Placeholder: ✅
+  Use: "Todo" type — empty or checked checkbox
+  Lucide suggestion: square-check or check-square
+
+bell.svg
+  Placeholder: 🔔
+  Use: "Reminder" type — bell icon
+  Lucide suggestion: bell
+
+lightbulb.svg
+  Placeholder: 💡
+  Use: "Idea" type — lightbulb
+  Lucide suggestion: lightbulb
+
+pencil-line.svg
+  Placeholder: 📝
+  Use: "Note" type — pencil writing on a line
+  Lucide suggestion: pencil-line or file-text
+
+circle-help.svg
+  Placeholder: ❓
+  Use: "Question" type — question mark in a circle
+  Lucide suggestion: circle-help or help-circle
+
+archive-box.svg
+  Placeholder: 📦
+  Use: "Archive" view — box with down-arrow or archive tray
+  Lucide suggestion: archive or archive-restore
+
+settings-gear.svg
+  Placeholder: ⚙
+  Use: "Settings" view — gear/cog
+  Lucide suggestion: settings or settings-2
+
+triangle-alert.svg
+  Placeholder: ⚠
+  Use: "Errors" view — triangle with exclamation mark
+  Lucide suggestion: triangle-alert or alert-triangle
+
+## Note card action buttons
+
+check.svg
+  Placeholder: ✓
+  Use: "Mark done" action button on note cards
+  Lucide suggestion: check or circle-check
+
+pencil.svg
+  Placeholder: ✎
+  Use: "Edit" action button on note cards
+  Lucide suggestion: pencil or pen
+
+trash.svg
+  Placeholder: 🗑
+  Use: "Delete" action button on note cards and archive
+  Lucide suggestion: trash-2
+
+## Note card metadata badges
+
+clock.svg
+  Placeholder: ⏰ (used inline in label text)
+  Use: Scheduled time indicator on note cards
+  Lucide suggestion: clock or alarm-clock
+
+repeat.svg
+  Placeholder: ↻ (used as type-chip label)
+  Use: Recurrence indicator on note cards
+  Lucide suggestion: repeat or refresh-cw
+
+## New Note button
+
+plus.svg
+  Placeholder: ✚ (used in "✚  New Note" button label)
+  Use: New note creation button in sidebar
+  Lucide suggestion: plus or plus-circle
+
+## Notes on integration
+# When switching from emoji/text to SVG icons:
+# 1. Use gtk4::Image::from_file() or load via gtk4::IconTheme for theme-aware icons.
+# 2. For action buttons, replace the label with a gtk4::Image child:
+#      let btn = gtk4::Button::new();
+#      btn.set_child(Some(&gtk4::Image::from_file("path/to/icon.svg")));
+# 3. Symbolic icons (named with "-symbolic" suffix in icon theme) follow the
+#    CSS color property automatically.

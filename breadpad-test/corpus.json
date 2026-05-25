@@ -1,0 +1,506 @@
+[
+  {
+    "input": "buy milk on the way home",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "buy milk on the way home",
+    "expected_rrule": null,
+    "notes": "plain todo, no time signal"
+  },
+  {
+    "input": "pick up dry cleaning",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "pick up dry cleaning",
+    "expected_rrule": null,
+    "notes": null
+  },
+  {
+    "input": "fix the leaky tap in the bathroom",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "fix the leaky tap in the bathroom",
+    "expected_rrule": null,
+    "notes": "starts with 'fix'"
+  },
+  {
+    "input": "write release notes for v0.2",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "write release notes for v0.2",
+    "expected_rrule": null,
+    "notes": "starts with 'write'"
+  },
+  {
+    "input": "email the accountant about last quarter",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "email the accountant about last quarter",
+    "expected_rrule": null,
+    "notes": "starts with 'email'"
+  },
+  {
+    "input": "check the breadpad logs for errors",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "check the breadpad logs for errors",
+    "expected_rrule": null,
+    "notes": "starts with 'check'"
+  },
+  {
+    "input": "finish implementing the notification popup",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "finish implementing the notification popup",
+    "expected_rrule": null,
+    "notes": "starts with 'finish'"
+  },
+  {
+    "input": "update the workspace dependencies",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "update the workspace dependencies",
+    "expected_rrule": null,
+    "notes": "starts with 'update'"
+  },
+  {
+    "input": "clean up the old git branches",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "clean up the old git branches",
+    "expected_rrule": null,
+    "notes": "contains 'clean '"
+  },
+  {
+    "input": "call mum at 7pm",
+    "expected_type": "reminder",
+    "expected_time": "19:00",
+    "expected_body": "call mum",
+    "expected_rrule": null,
+    "notes": "12h reminder; body should have time phrase stripped"
+  },
+  {
+    "input": "dentist appointment at 3pm",
+    "expected_type": "reminder",
+    "expected_time": "15:00",
+    "expected_body": "dentist appointment",
+    "expected_rrule": null,
+    "notes": null
+  },
+  {
+    "input": "pack calculator in bag at 7pm",
+    "expected_type": "reminder",
+    "expected_time": "19:00",
+    "expected_body": "pack calculator in bag",
+    "expected_rrule": null,
+    "notes": "time stripped from middle of sentence"
+  },
+  {
+    "input": "meeting prep at 14:30",
+    "expected_type": "reminder",
+    "expected_time": "14:30",
+    "expected_body": "meeting prep",
+    "expected_rrule": null,
+    "notes": "24h time with minutes"
+  },
+  {
+    "input": "check the deploy at 23:00",
+    "expected_type": "reminder",
+    "expected_time": "23:00",
+    "expected_body": "check the deploy",
+    "expected_rrule": null,
+    "notes": "24h late-night reminder"
+  },
+  {
+    "input": "lunch at 12pm",
+    "expected_type": "reminder",
+    "expected_time": "12:00",
+    "expected_body": "lunch",
+    "expected_rrule": null,
+    "notes": "noon edge case"
+  },
+  {
+    "input": "buy milk at the store",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "buy milk at the store",
+    "expected_rrule": null,
+    "notes": "'at the store' has no digit — should not be parsed as time"
+  },
+  {
+    "input": "take a break in 20 minutes",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "take a break",
+    "expected_rrule": null,
+    "notes": "numeric relative time; expected_time null because offset from now is not assertable"
+  },
+  {
+    "input": "review the PR in 2 hours",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "review the PR",
+    "expected_rrule": null,
+    "notes": "relative hours"
+  },
+  {
+    "input": "follow up in 3 days",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "follow up",
+    "expected_rrule": null,
+    "notes": "relative days"
+  },
+  {
+    "input": "check on the deployment in an hour",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "check on the deployment",
+    "expected_rrule": null,
+    "notes": "word-form duration: 'an hour' = 1h"
+  },
+  {
+    "input": "in a couple of hours remind me to check the oven",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "remind me to check the oven",
+    "expected_rrule": null,
+    "notes": "word-form duration: 'a couple of hours' = 2h"
+  },
+  {
+    "input": "in a few hours I need to submit this form",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "word-form duration: 'a few hours' = 3h"
+  },
+  {
+    "input": "in half an hour submit the report",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "submit the report",
+    "expected_rrule": null,
+    "notes": "word-form duration: 'half an hour' = 30 min"
+  },
+  {
+    "input": "standup tomorrow morning",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "standup",
+    "expected_rrule": null,
+    "notes": "tomorrow morning → tomorrow at 08:00; time not asserted (date-relative)"
+  },
+  {
+    "input": "dentist appointment tomorrow",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "dentist appointment",
+    "expected_rrule": null,
+    "notes": "bare 'tomorrow' uses morning default"
+  },
+  {
+    "input": "call family tomorrow evening",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "call family",
+    "expected_rrule": null,
+    "notes": "tomorrow evening → tomorrow at 18:00"
+  },
+  {
+    "input": "dentist next monday",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "dentist",
+    "expected_rrule": null,
+    "notes": "next weekday; time not asserted (date-relative)"
+  },
+  {
+    "input": "team lunch next friday",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "team lunch",
+    "expected_rrule": null,
+    "notes": null
+  },
+  {
+    "input": "tonight put the bins out",
+    "expected_type": "reminder",
+    "expected_time": "21:00",
+    "expected_body": "put the bins out",
+    "expected_rrule": null,
+    "notes": "'tonight' anchors to 21:00; word stripped from body"
+  },
+  {
+    "input": "watch the football tonight",
+    "expected_type": "reminder",
+    "expected_time": "21:00",
+    "expected_body": "watch the football",
+    "expected_rrule": null,
+    "notes": "'tonight' at end of sentence"
+  },
+  {
+    "input": "this evening water the plants",
+    "expected_type": "reminder",
+    "expected_time": "21:00",
+    "expected_body": "water the plants",
+    "expected_rrule": null,
+    "notes": "'this evening' synonym for tonight"
+  },
+  {
+    "input": "call dad tonight at 8pm",
+    "expected_type": "reminder",
+    "expected_time": "20:00",
+    "expected_body": "call dad",
+    "expected_rrule": null,
+    "notes": "explicit 'at 8pm' overrides 'tonight'; at_time takes precedence"
+  },
+  {
+    "input": "later today sort out the inbox",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "vague relative time; Tier 1 cannot parse 'later today' — no assertion"
+  },
+  {
+    "input": "every sunday night check the bins",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "check the bins",
+    "expected_rrule": "BYDAY=SU",
+    "notes": "weekly recurrence; 'night' stripped from body via morning_evening cleanup"
+  },
+  {
+    "input": "every weekday morning check email",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "check email",
+    "expected_rrule": "BYDAY=MO,TU,WE,TH,FR",
+    "notes": "Mon–Fri recurrence; 'morning' maps to default_morning time"
+  },
+  {
+    "input": "every weekday at 9am standup",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "standup",
+    "expected_rrule": "BYDAY=MO,TU,WE,TH,FR",
+    "notes": "Mon–Fri recurrence with explicit time"
+  },
+  {
+    "input": "every tuesday at 6pm call dad",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "call dad",
+    "expected_rrule": "BYDAY=TU",
+    "notes": "named weekday recurrence with time"
+  },
+  {
+    "input": "every friday at 1pm team lunch",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "team lunch",
+    "expected_rrule": "BYDAY=FR",
+    "notes": null
+  },
+  {
+    "input": "every saturday morning review the week",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "review the week",
+    "expected_rrule": "BYDAY=SA",
+    "notes": "named weekday recurrence; 'morning' stripped from body"
+  },
+  {
+    "input": "take my meds every day at 8am",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "take my meds",
+    "expected_rrule": "FREQ=DAILY",
+    "notes": "daily recurrence with explicit time"
+  },
+  {
+    "input": "every day take vitamins",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "take vitamins",
+    "expected_rrule": "FREQ=DAILY",
+    "notes": "daily recurrence; 'every day' at start"
+  },
+  {
+    "input": "retro every week at 4pm",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "retro",
+    "expected_rrule": "FREQ=WEEKLY",
+    "notes": "every_week pattern still works after adding every_weekdays"
+  },
+  {
+    "input": "what if breadman had a calendar view",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": "what if breadman had a calendar view",
+    "expected_rrule": null,
+    "notes": "classic what-if idea"
+  },
+  {
+    "input": "idea: dark mode toggle in breadman",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "explicit idea: prefix"
+  },
+  {
+    "input": "maybe we could add export to CSV",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": "maybe we could add export to CSV",
+    "expected_rrule": null,
+    "notes": "contains 'maybe'"
+  },
+  {
+    "input": "could the sidebar show counts per type",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": "could the sidebar show counts per type",
+    "expected_rrule": null,
+    "notes": "contains 'could'"
+  },
+  {
+    "input": "should we add a dark mode to breadman",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": "should we add a dark mode to breadman",
+    "expected_rrule": null,
+    "notes": "contains 'should we '"
+  },
+  {
+    "input": "what if we switched to SQLite instead of JSONL",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": "what if we switched to SQLite instead of JSONL",
+    "expected_rrule": null,
+    "notes": "starts with 'what if'"
+  },
+  {
+    "input": "why does nmcli drop on suspend?",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": "why does nmcli drop on suspend?",
+    "expected_rrule": null,
+    "notes": "starts with 'why'"
+  },
+  {
+    "input": "how do I configure zbus async",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": "how do I configure zbus async",
+    "expected_rrule": null,
+    "notes": "starts with 'how'"
+  },
+  {
+    "input": "what is the best way to handle GTK signals in Rust?",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "starts with 'what' (not 'what if') — question, not idea"
+  },
+  {
+    "input": "is this thread safe?",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": "is this thread safe?",
+    "expected_rrule": null,
+    "notes": "ends with ? without a known question-word prefix"
+  },
+  {
+    "input": "does the ONNX runtime cache model weights between runs?",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "ends with ?"
+  },
+  {
+    "input": "meeting went well, follow up needed",
+    "expected_type": "note",
+    "expected_time": null,
+    "expected_body": "meeting went well, follow up needed",
+    "expected_rrule": null,
+    "notes": "plain observation; no action verbs, no time, no question"
+  },
+  {
+    "input": "the new mechanical keyboard is noisy but I like it",
+    "expected_type": "note",
+    "expected_time": null,
+    "expected_body": "the new mechanical keyboard is noisy but I like it",
+    "expected_rrule": null,
+    "notes": "general note, no strong signals"
+  },
+  {
+    "input": "finally got the ONNX model running on CPU",
+    "expected_type": "note",
+    "expected_time": null,
+    "expected_body": "finally got the ONNX model running on CPU",
+    "expected_rrule": null,
+    "notes": "observation without actionable signal"
+  },
+  {
+    "input": "i should probably sort out that thing with the lights",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "ambiguous; Tier 1 returns note — no assertion, good Tier 2 test case"
+  },
+  {
+    "input": "get around to fixing the shelf at some point",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "'at some point' has no digit after 'at' so time not extracted; 'fixing' not a recognised prefix"
+  },
+  {
+    "input": "idea: remind me to think about this every monday",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": "BYDAY=MO",
+    "notes": "mixed signals: idea: prefix but recurrence takes precedence — type must be reminder"
+  },
+  {
+    "input": "buy milk tonight and remind me to call the doctor tomorrow",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "multi-intent: 'tomorrow' triggers time extraction; 'tonight' word stripped from body"
+  },
+  {
+    "input": "sort out that thing with the router at some point",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "unstructured; 'at some point' not parsed as time"
+  },
+  {
+    "input": "rmind me abt dentist appt tmrw",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "typo-heavy; Tier 1 cannot parse this; Tier 2/3 may or may not handle it"
+  },
+  {
+    "input": "pls remind me abt the call at 3pm",
+    "expected_type": "reminder",
+    "expected_time": "15:00",
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "'at 3pm' matches rule-based despite informal phrasing around it"
+  }
+]
