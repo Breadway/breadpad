@@ -7,9 +7,7 @@ authors.workspace = true
 
 
 [dependencies]
-# Path dep for local dev; replace with git dep on first tag:
-# bread-theme = { git = "https://github.com/Breadway/bread-ecosystem", tag = "theme-v0.1.0" }
-bread-theme = { path = "../../bread-ecosystem/bread-theme" }
+bread-theme = { git = "https://github.com/Breadway/bread-ecosystem", tag = "v0.1.0" }
 anyhow.workspace = true
 tracing.workspace = true
 serde.workspace = true
