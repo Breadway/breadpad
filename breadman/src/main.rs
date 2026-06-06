@@ -107,6 +107,30 @@ impl AppState {
     }
 }
 
+// ── Background I/O helper ─────────────────────────────────────────────────────
+
+/// Run `work` on a background thread, then call `then` on the GTK main thread.
+///
+/// `work` must be `Send + 'static` (moves into the thread).
+/// `then` only needs `'static` — it can capture GTK widgets and `Rc<RefCell<...>>`.
+///
+/// Uses `glib::MainContext::spawn_local` (called from the main thread) with a
+/// `futures_channel::oneshot` to bridge the blocking result back to the async future.
+fn spawn_bg<F, T, C>(work: F, then: C)
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+    C: FnOnce(T) + 'static,
+{
+    let (tx, rx) = futures_channel::oneshot::channel::<T>();
+    std::thread::spawn(move || { let _ = tx.send(work()); });
+    glib::MainContext::default().spawn_local(async move {
+        if let Ok(result) = rx.await {
+            then(result);
+        }
+    });
+}
+
 // ── Refresh ───────────────────────────────────────────────────────────────────
 
 fn refresh(state: &AppState) {
@@ -114,6 +138,16 @@ fn refresh(state: &AppState) {
     rebuild_stack(state);
     let active = state.active_view.borrow().clone();
     state.stack.set_visible_child_name(&active);
+}
+
+/// Replace only the "all" stack page with a new list built from `notes`.
+/// All other pages are left untouched, preserving scroll position etc.
+fn rebuild_all_view(notes: &[Note], state: &AppState) {
+    if let Some(child) = state.stack.child_by_name("all") {
+        state.stack.remove(&child);
+    }
+    let scroll = build_note_list(notes, state.clone());
+    state.stack.add_named(&scroll, Some("all"));
 }
 
 fn rebuild_stack(state: &AppState) {
@@ -208,9 +242,9 @@ fn cmd_upcoming_plain() -> Result<()> {
                 && n.effective_time().is_some()
         })
         .collect();
-    notes.sort_by_key(|n| n.effective_time().unwrap());
+    notes.sort_by_key(|n| n.effective_time().expect("filtered by is_some above"));
     for note in &notes {
-        let t = note.effective_time().unwrap();
+        let t = note.effective_time().expect("filtered by is_some above");
         let local: chrono::DateTime<Local> = t.into();
         println!("[{}] {} — {}", note.id, local.format("%a %b %d %H:%M"), note.body);
     }
@@ -272,10 +306,10 @@ fn build_app_window(
     let new_note_btn = gtk4::Button::builder()
         .label("✚  New Note")
         .css_classes(["confirm-button"])
-        .margin_start(10)
-        .margin_end(10)
-        .margin_top(12)
-        .margin_bottom(6)
+        .margin_start(12)
+        .margin_end(12)
+        .margin_top(16)
+        .margin_bottom(12)
         .build();
     sidebar_vbox.append(&new_note_btn);
 
@@ -349,10 +383,10 @@ fn build_app_window(
     let search_entry = gtk4::SearchEntry::builder()
         .placeholder_text("Search notes…")
         .css_classes(["search-entry"])
-        .margin_start(8)
-        .margin_end(8)
-        .margin_top(8)
-        .margin_bottom(4)
+        .margin_start(12)
+        .margin_end(12)
+        .margin_top(12)
+        .margin_bottom(8)
         .build();
 
     let stack = gtk4::Stack::builder().hexpand(true).vexpand(true).build();
@@ -401,36 +435,8 @@ fn build_app_window(
                     .filter(|n| n.body.to_lowercase().contains(&q))
                     .collect()
             };
-
-            // Replace the "all" page with the filtered list while preserving others
-            while let Some(child) = state_c.stack.first_child() {
-                state_c.stack.remove(&child);
-            }
-            let all_scroll = build_note_list(&filtered, state_c.clone());
-            state_c.stack.add_named(&all_scroll, Some("all"));
-
-            let notes_snap = state_c.notes.borrow().clone();
-            let cfg_snap = state_c.cfg.borrow().clone();
-            let errors_snap = state_c.errors.borrow().clone();
-
-            let upcoming = views::upcoming::build(&notes_snap);
-            state_c.stack.add_named(&upcoming, Some("upcoming"));
-            for type_name in NoteType::all_builtin() {
-                let nt = NoteType::from_str(type_name);
-                let typed: Vec<Note> = notes_snap
-                    .iter()
-                    .filter(|n| n.note_type == nt && !n.done)
-                    .cloned()
-                    .collect();
-                state_c.stack.add_named(&build_note_list(&typed, state_c.clone()), Some(type_name));
-            }
-            state_c.stack.add_named(&views::archive::build(&notes_snap, state_c.clone()), Some("archive"));
-            let state_s = state_c.clone();
-            state_c.stack.add_named(
-                &views::settings::build(&cfg_snap, move |nc| { *state_s.cfg.borrow_mut() = nc; }),
-                Some("settings"),
-            );
-            state_c.stack.add_named(&views::errors::build(&errors_snap), Some("errors"));
+            // Only replace the "all" page — other views keep their scroll position.
+            rebuild_all_view(&filtered, &state_c);
             state_c.stack.set_visible_child_name("all");
         });
     }
@@ -475,9 +481,11 @@ fn build_note_list(notes: &[Note], state: AppState) -> gtk4::ScrolledWindow {
 
     let list = gtk4::Box::builder()
         .orientation(gtk4::Orientation::Vertical)
-        .spacing(4)
-        .margin_top(8)
-        .margin_bottom(8)
+        .spacing(8)
+        .margin_top(12)
+        .margin_bottom(12)
+        .margin_start(12)
+        .margin_end(12)
         .build();
 
     let mut sorted: Vec<Note> = notes.iter().filter(|n| !n.done).cloned().collect();
@@ -503,11 +511,11 @@ fn build_note_list(notes: &[Note], state: AppState) -> gtk4::ScrolledWindow {
 fn build_note_card(note: &Note, state: AppState) -> gtk4::Box {
     let card = gtk4::Box::builder()
         .orientation(gtk4::Orientation::Vertical)
-        .spacing(4)
-        .margin_start(8)
-        .margin_end(8)
-        .margin_top(4)
-        .margin_bottom(4)
+        .spacing(8)
+        .margin_start(0)
+        .margin_end(0)
+        .margin_top(0)
+        .margin_bottom(0)
         .css_classes(["note-card"])
         .build();
     card.add_css_class(&format!("note-card-{}", note.note_type.as_str()));
@@ -590,14 +598,30 @@ fn build_note_card(note: &Note, state: AppState) -> gtk4::Box {
         let card_c = card.clone();
         let state_c = state.clone();
         done_btn.connect_clicked(move |_| {
-            if let Ok(Some(mut n)) = state_c.store.get_by_id(&note_id) {
-                n.mark_done();
-                if let Err(e) = state_c.store.update_note(&n) {
-                    state_c.log_error(format!("mark done failed: {}", e));
-                }
-            }
-            card_c.set_visible(false);
-            state_c.reload_notes();
+            card_c.set_visible(false); // optimistic hide
+            let store = state_c.write_store();
+            let id = note_id.clone();
+            let state = state_c.clone();
+            spawn_bg(
+                move || -> anyhow::Result<Vec<Note>> {
+                    if let Some(mut n) = store.get_by_id(&id)? {
+                        n.mark_done();
+                        store.update_note(&n)?;
+                    }
+                    store.load_all()
+                },
+                move |result| {
+                    match result {
+                        Ok(fresh) => {
+                            *state.notes.borrow_mut() = fresh;
+                            rebuild_stack(&state);
+                            let active = state.active_view.borrow().clone();
+                            state.stack.set_visible_child_name(&active);
+                        }
+                        Err(e) => state.log_error(format!("mark done failed: {}", e)),
+                    }
+                },
+            );
         });
     }
     bottom_row.append(&done_btn);
@@ -622,19 +646,29 @@ fn build_note_card(note: &Note, state: AppState) -> gtk4::Box {
             let body_label_save = body_label_c.clone();
             let state_del = state_c.clone();
             let card_del = card_c.clone();
+            let state_err = state_c.clone();
 
             let popover = editor::build_editor_popover(
                 &note_c,
                 store,
                 morning,
-                move |updated: Note| {
+                Rc::new(move |updated: Note| {
                     body_label_save.set_label(&updated.body);
                     state_save.reload_notes();
-                },
-                move || {
+                    rebuild_stack(&state_save);
+                    let active = state_save.active_view.borrow().clone();
+                    state_save.stack.set_visible_child_name(&active);
+                }),
+                Rc::new(move || {
                     card_del.set_visible(false);
                     state_del.reload_notes();
-                },
+                    rebuild_stack(&state_del);
+                    let active = state_del.active_view.borrow().clone();
+                    state_del.stack.set_visible_child_name(&active);
+                }),
+                Rc::new(move |e: String| {
+                    state_err.log_error(e);
+                }),
             );
             popover.set_parent(btn);
             popover.popup();
@@ -659,12 +693,30 @@ fn build_note_card(note: &Note, state: AppState) -> gtk4::Box {
 
         delete_btn.connect_clicked(move |_| {
             if *confirming.borrow() {
+                card_c.set_visible(false); // optimistic hide
                 let store = state_c.write_store();
-                if let Err(e) = store.delete_note(&note_id) {
-                    state_c.log_error(format!("delete failed: {}", e));
-                }
-                card_c.set_visible(false);
-                state_c.reload_notes();
+                let id = note_id.clone();
+                let state = state_c.clone();
+                spawn_bg(
+                    move || -> anyhow::Result<Vec<Note>> {
+                        store.delete_note(&id)?;
+                        if let Err(e) = Scheduler::cancel(&id) {
+                            tracing::warn!("failed to cancel timer for {}: {}", id, e);
+                        }
+                        store.load_all()
+                    },
+                    move |result| {
+                        match result {
+                            Ok(fresh) => {
+                                *state.notes.borrow_mut() = fresh;
+                                rebuild_stack(&state);
+                                let active = state.active_view.borrow().clone();
+                                state.stack.set_visible_child_name(&active);
+                            }
+                            Err(e) => state.log_error(format!("delete failed: {}", e)),
+                        }
+                    },
+                );
             } else {
                 *confirming.borrow_mut() = true;
                 btn_c.set_label("Sure?");
@@ -779,108 +831,88 @@ fn show_add_note_window(parent: &gtk4::ApplicationWindow, state: AppState) {
         cancel_btn.connect_clicked(move |_| win_c.close());
     }
 
-    // Add Note
-    {
-        let win_c = win.clone();
-        let state_c = state.clone();
-        let body_c = body_entry.clone();
-        let time_c = time_entry.clone();
-        let rrule_c = rrule_entry.clone();
-        let sel_c = selected_type.clone();
-        let status_c = status_label.clone();
+    // Shared add-note logic — called by both the button and the Enter key.
+    let do_add: Rc<dyn Fn()> = Rc::new({
+        let win = win.clone();
+        let state = state.clone();
+        let body_entry = body_entry.clone();
+        let time_entry = time_entry.clone();
+        let rrule_entry = rrule_entry.clone();
+        let selected_type = selected_type.clone();
+        let status_label = status_label.clone();
 
-        let do_add = move || {
-            let body_text = body_c.text().to_string();
+        move || {
+            let body_text = body_entry.text().to_string();
             if body_text.trim().is_empty() {
-                status_c.set_label("Body is required.");
+                status_label.set_label("Body is required.");
                 return;
             }
 
-            let morning = state_c.cfg.borrow().reminders.default_morning.clone();
-
-            // Tier 1 classification on body
+            let morning = state.cfg.borrow().reminders.default_morning.clone();
             let parsed = parse_rule_based(&body_text, &morning);
-
-            let user_type = sel_c.borrow().clone();
-            let default_type = NoteType::from_str(&state_c.cfg.borrow().settings.default_type);
+            let user_type = selected_type.borrow().clone();
+            let default_type = NoteType::from_str(&state.cfg.borrow().settings.default_type);
 
             let mut note = Note::new(parsed.body.clone(), user_type.clone(), None);
-            // Use parsed type if user left it at the default
             if user_type == default_type {
                 note.note_type = parsed.note_type;
             }
             note.time = parsed.time;
             note.rrule = parsed.rrule;
 
-            // Time field overrides
-            let time_str = time_c.text().to_string();
+            let time_str = time_entry.text().to_string();
             if !time_str.trim().is_empty() {
                 let tp = parse_rule_based(&time_str, &morning);
                 if tp.time.is_some() { note.time = tp.time; }
                 if tp.rrule.is_some() { note.rrule = tp.rrule; }
             }
 
-            // RRULE field overrides
-            let rrule_str = rrule_c.text().to_string();
+            let rrule_str = rrule_entry.text().to_string();
             if !rrule_str.trim().is_empty() {
                 note.rrule = Some(RecurrenceRule::new(rrule_str));
             }
 
-            let store = state_c.write_store();
-            if let Err(e) = store.save_note(&note) {
-                state_c.log_error(format!("save failed: {}", e));
-                return;
-            }
-            if note.time.is_some() {
-                if let Err(e) = Scheduler::schedule(&note) {
-                    state_c.log_error(format!("schedule failed: {}", e));
-                }
-            }
+            let store = state.write_store();
+            win.close();
 
-            win_c.close();
-            // Defer refresh so the window close event is processed first
-            let state_refresh = state_c.clone();
-            glib::idle_add_local_once(move || refresh(&state_refresh));
-        };
+            let state_bg = state.clone();
+            spawn_bg(
+                move || -> anyhow::Result<Vec<Note>> {
+                    store.save_note(&note)?;
+                    if note.time.is_some() || note.rrule.is_some() {
+                        if let Err(e) = Scheduler::cancel(&note.id) {
+                            tracing::warn!("cancel before schedule: {}", e);
+                        }
+                        Scheduler::schedule(&note)?;
+                    }
+                    store.load_all()
+                },
+                move |result| {
+                    match result {
+                        Ok(fresh) => {
+                            *state_bg.notes.borrow_mut() = fresh;
+                            rebuild_stack(&state_bg);
+                            let active = state_bg.active_view.borrow().clone();
+                            state_bg.stack.set_visible_child_name(&active);
+                        }
+                        Err(e) => state_bg.log_error(format!("save failed: {}", e)),
+                    }
+                },
+            );
+        }
+    });
 
+    {
+        let do_add = Rc::clone(&do_add);
         add_btn.connect_clicked(move |_| do_add());
     }
-
-    // Also trigger add on Enter in body field
     {
-        let win_c2 = win.clone();
-        let state_c2 = state.clone();
-        let body_c2 = body_entry.clone();
-        let time_c2 = time_entry.clone();
-        let rrule_c2 = rrule_entry.clone();
-        let sel_c2 = selected_type.clone();
-
+        let do_add = Rc::clone(&do_add);
+        let time_entry = time_entry.clone();
+        let rrule_entry = rrule_entry.clone();
         body_entry.connect_activate(move |_| {
-            // If time/rrule fields are empty, submit immediately
-            if time_c2.text().is_empty() && rrule_c2.text().is_empty() {
-                let body_text = body_c2.text().to_string();
-                if body_text.trim().is_empty() { return; }
-                let morning = state_c2.cfg.borrow().reminders.default_morning.clone();
-                let parsed = parse_rule_based(&body_text, &morning);
-                let user_type = sel_c2.borrow().clone();
-                let default_type = NoteType::from_str(&state_c2.cfg.borrow().settings.default_type);
-                let mut note = Note::new(parsed.body.clone(), user_type.clone(), None);
-                if user_type == default_type { note.note_type = parsed.note_type; }
-                note.time = parsed.time;
-                note.rrule = parsed.rrule;
-                let store = state_c2.write_store();
-                if let Err(e) = store.save_note(&note) {
-                    state_c2.log_error(format!("save failed: {}", e));
-                    return;
-                }
-                if note.time.is_some() {
-                    if let Err(e) = Scheduler::schedule(&note) {
-                        state_c2.log_error(format!("schedule failed: {}", e));
-                    }
-                }
-                win_c2.close();
-                let sr = state_c2.clone();
-                glib::idle_add_local_once(move || refresh(&sr));
+            if time_entry.text().is_empty() && rrule_entry.text().is_empty() {
+                do_add();
             }
         });
     }
@@ -898,8 +930,12 @@ fn apply_css(_cfg: &Config) {
 
     let provider = gtk4::CssProvider::new();
     provider.load_from_string(&css);
+    let Some(display) = gtk4::gdk::Display::default() else {
+        tracing::warn!("no default display; skipping CSS provider");
+        return;
+    };
     gtk4::style_context_add_provider_for_display(
-        &gtk4::gdk::Display::default().unwrap(),
+        &display,
         &provider,
         gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
     );

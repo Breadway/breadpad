@@ -18,3 +18,5 @@ chrono = { workspace = true }
 clap = { version = "4", features = ["derive"] }
 colored = "2"
 comfy-table = "7"
+ort = { workspace = true }
+dirs = { workspace = true }

@@ -11,14 +11,28 @@ fn default_snooze_options() -> Vec<String> {
 fn default_archive_after_days() -> i64 { 30 }
 fn default_model_path() -> String { "~/.local/share/breadpad/model/classifier.onnx".into() }
 fn default_tokenizer_path() -> String { "~/.local/share/breadpad/model/tokenizer.json".into() }
-fn default_execution_provider() -> String { "auto".into() }
+fn default_ort_dylib_path() -> String { "".into() }
 fn default_morning_time() -> String { "08:00".into() }
 fn default_missed_grace_minutes() -> i64 { 60 }
 fn default_ollama_endpoint() -> String { "http://localhost:11434".into() }
-fn default_ollama_model() -> String { "llama3.2:3b".into() }
+fn default_ollama_model() -> String { "fastflowlm".into() }
 fn default_ollama_confidence_threshold() -> f32 { 0.6 }
 fn default_ollama_enabled() -> bool { true }
 fn default_calendar_enabled() -> bool { false }
+
+pub fn expand_path(path: &str) -> PathBuf {
+    if path == "~" {
+        if let Some(home) = dirs::home_dir() {
+            return home;
+        }
+    }
+    if let Some(stripped) = path.strip_prefix("~/") {
+        if let Some(home) = dirs::home_dir() {
+            return home.join(stripped);
+        }
+    }
+    PathBuf::from(path)
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Settings {
@@ -72,8 +86,9 @@ pub struct ModelConfig {
     pub path: String,
     #[serde(default = "default_tokenizer_path")]
     pub tokenizer: String,
-    #[serde(default = "default_execution_provider")]
-    pub execution_provider: String,
+    /// Path to `libonnxruntime.so`. Auto-discovered when empty.
+    #[serde(default = "default_ort_dylib_path")]
+    pub ort_dylib_path: String,
     #[serde(default)]
     pub ollama: OllamaConfig,
 }
@@ -83,9 +98,23 @@ impl Default for ModelConfig {
         ModelConfig {
             path: default_model_path(),
             tokenizer: default_tokenizer_path(),
-            execution_provider: default_execution_provider(),
+            ort_dylib_path: default_ort_dylib_path(),
             ollama: OllamaConfig::default(),
         }
+    }
+}
+
+impl ModelConfig {
+    pub fn resolved_paths(&self) -> (PathBuf, PathBuf) {
+        (expand_path(&self.path), expand_path(&self.tokenizer))
+    }
+
+    pub fn resolved_ort_dylib_path(&self) -> Option<PathBuf> {
+        let raw = self.ort_dylib_path.trim();
+        if raw.is_empty() {
+            return None;
+        }
+        Some(expand_path(raw))
     }
 }
 
@@ -114,6 +143,9 @@ pub struct CalendarConfig {
     pub url: String,
     #[serde(default)]
     pub username: String,
+    /// WARNING: stored as plaintext in breadpad.toml. Restrict the file's permissions
+    /// (`chmod 600 ~/.config/breadpad/breadpad.toml`) and keep it out of version control.
+    /// A future release may support reading the password from the OS secret service instead.
     #[serde(default)]
     pub password: String,
 }

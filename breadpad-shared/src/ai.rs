@@ -70,10 +70,9 @@ impl OllamaClient {
             .into_json()
             .map_err(|e| anyhow::anyhow!("deserialize Ollama envelope: {}", e))?;
 
-        let classification: OllamaClassification = serde_json::from_str(&ollama_resp.response)
-            .map_err(|e| anyhow::anyhow!(
-                "parse Ollama classification JSON: {} — raw: {:?}",
-                e,
+        let classification: OllamaClassification = extract_json(&ollama_resp.response)
+            .ok_or_else(|| anyhow::anyhow!(
+                "no JSON object found in response — raw: {:?}",
                 &ollama_resp.response
             ))?;
 
@@ -115,4 +114,13 @@ impl OllamaClient {
             body,
         })
     }
+}
+
+// Some backends (e.g. FastFlowLM) ignore `"format": "json"` and may wrap the
+// JSON in prose. Find the first `{...}` span and parse that.
+fn extract_json<T: serde::de::DeserializeOwned>(s: &str) -> Option<T> {
+    let start = s.find('{')?;
+    let end = s.rfind('}')?;
+    if end < start { return None; }
+    serde_json::from_str(&s[start..=end]).ok()
 }

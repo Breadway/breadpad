@@ -1,4 +1,5 @@
 use crate::types::Note;
+use crate::util::local_naive_to_utc;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Duration, Local, NaiveTime, Utc};
 use std::process::Command;
@@ -59,27 +60,63 @@ fn create_timer(id: &str, fire_time: DateTime<Utc>) -> Result<()> {
 
     let timer_name = timer_unit_name(id);
 
+    // Find the breadpad binary. Order of preference:
+    //   1. $BREADPAD_BIN override,
+    //   2. a `breadpad` next to the currently running executable,
+    //   3. standard install locations.
+    let breadpad_exe = std::env::var_os("BREADPAD_BIN")
+        .map(std::path::PathBuf::from)
+        .filter(|p| p.exists())
+        .or_else(|| {
+            std::env::current_exe()
+                .ok()
+                .and_then(|exe| exe.parent().map(|p| p.join("breadpad")))
+                .filter(|p| p.exists())
+        })
+        .or_else(|| {
+            let home_bin = dirs::home_dir().map(|h| h.join(".local/bin/breadpad"));
+            ["/usr/local/bin/breadpad", "/usr/bin/breadpad"]
+                .iter()
+                .map(std::path::PathBuf::from)
+                .chain(home_bin)
+                .find(|p| p.exists())
+        })
+        .context("breadpad binary not found in $BREADPAD_BIN, alongside this executable, or in standard locations")?;
+
     // Use systemd-run to create both service + timer as a transient unit
-    let status = Command::new("systemd-run")
-        .arg("--user")
+    // Pass necessary environment variables for notifications to work
+    let mut cmd = Command::new("systemd-run");
+    cmd.arg("--user")
         .arg("--unit")
-        .arg(&timer_name.strip_suffix(".timer").unwrap_or(&timer_name))
+        .arg(timer_name.strip_suffix(".timer").unwrap_or(&timer_name))
         .arg("--timer-property")
         .arg(format!("OnCalendar={}", on_calendar))
         .arg("--timer-property")
-        .arg("Persistent=true")
-        .arg("--")
-        .arg("breadpad")
+        .arg("Persistent=true");
+
+    // Pass DBUS and display environment variables so notify-send works
+    if let Ok(dbus) = std::env::var("DBUS_SESSION_BUS_ADDRESS") {
+        cmd.arg("--setenv").arg(format!("DBUS_SESSION_BUS_ADDRESS={}", dbus));
+    }
+    if let Ok(display) = std::env::var("DISPLAY") {
+        cmd.arg("--setenv").arg(format!("DISPLAY={}", display));
+    }
+    if let Ok(wayland) = std::env::var("WAYLAND_DISPLAY") {
+        cmd.arg("--setenv").arg(format!("WAYLAND_DISPLAY={}", wayland));
+    }
+
+    cmd.arg("--")
+        .arg(&breadpad_exe)
         .arg("fire")
-        .arg(id)
-        .status()
-        .context("failed to run systemd-run")?;
+        .arg(id);
+
+    let status = cmd.status().context("failed to run systemd-run")?;
 
     if !status.success() {
         anyhow::bail!("systemd-run failed for reminder {}", id);
     }
 
-    tracing::info!("scheduled reminder {} at {}", id, on_calendar);
+    tracing::info!("scheduled reminder {} at {} using {}", id, on_calendar, breadpad_exe.display());
     Ok(())
 }
 
@@ -131,17 +168,15 @@ pub(crate) fn parse_next_from_rrule(rrule_str: &str, default_morning: &str) -> O
     let now = Local::now();
     let fire_time = NaiveTime::from_hms_opt(hour, minute, 0)?;
 
-    let next = match freq {
+    match freq {
         "DAILY" => {
             let today = now.date_naive().and_time(fire_time);
-            if now.naive_local() < today {
-                today.and_local_timezone(Local).unwrap()
+            let naive = if now.naive_local() < today {
+                today
             } else {
-                (now.date_naive() + chrono::Duration::days(1))
-                    .and_time(fire_time)
-                    .and_local_timezone(Local)
-                    .unwrap()
-            }
+                (now.date_naive() + chrono::Duration::days(1)).and_time(fire_time)
+            };
+            return Some(local_naive_to_utc(naive));
         }
         "WEEKLY" => {
             use chrono::Datelike;
@@ -169,12 +204,10 @@ pub(crate) fn parse_next_from_rrule(rrule_str: &str, default_morning: &str) -> O
             };
             let target_date =
                 (now.date_naive() + chrono::Duration::days(days_ahead)).and_time(fire_time);
-            target_date.and_local_timezone(Local).unwrap()
+            return Some(local_naive_to_utc(target_date));
         }
-        _ => return None,
-    };
-
-    Some(next.with_timezone(&Utc))
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -332,10 +365,41 @@ mod tests {
     }
 
     #[test]
+    fn weekly_tuesday_is_tuesday() {
+        let t = parse_next_from_rrule("RRULE:FREQ=WEEKLY;BYDAY=TU;BYHOUR=10;BYMINUTE=0;BYSECOND=0", "08:00").unwrap();
+        let local: chrono::DateTime<Local> = t.into();
+        assert_eq!(local.weekday(), chrono::Weekday::Tue);
+    }
+
+    #[test]
+    fn weekly_thursday_is_thursday() {
+        let t = parse_next_from_rrule("RRULE:FREQ=WEEKLY;BYDAY=TH;BYHOUR=11;BYMINUTE=30;BYSECOND=0", "08:00").unwrap();
+        let local: chrono::DateTime<Local> = t.into();
+        assert_eq!(local.weekday(), chrono::Weekday::Thu);
+        assert_eq!(local.minute(), 30);
+    }
+
+    #[test]
     fn weekly_sunday_is_sunday() {
         let t = parse_next_from_rrule("RRULE:FREQ=WEEKLY;BYDAY=SU;BYHOUR=19;BYMINUTE=0;BYSECOND=0", "08:00").unwrap();
         let local: chrono::DateTime<Local> = t.into();
         assert_eq!(local.weekday(), chrono::Weekday::Sun);
+    }
+
+    #[test]
+    fn weekly_unknown_byday_falls_back_to_sunday() {
+        // The match arm `_ => Weekday::Sun` handles unrecognised BYDAY values
+        let t = parse_next_from_rrule("RRULE:FREQ=WEEKLY;BYDAY=XX;BYHOUR=9;BYMINUTE=0;BYSECOND=0", "08:00").unwrap();
+        let local: chrono::DateTime<Local> = t.into();
+        assert_eq!(local.weekday(), chrono::Weekday::Sun);
+    }
+
+    #[test]
+    fn daily_without_byhour_uses_default_morning() {
+        let t = parse_next_from_rrule("RRULE:FREQ=DAILY", "06:45").unwrap();
+        let local: chrono::DateTime<Local> = t.into();
+        assert_eq!(local.hour(), 6);
+        assert_eq!(local.minute(), 45);
     }
 
     #[test]

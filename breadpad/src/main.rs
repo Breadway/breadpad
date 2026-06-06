@@ -12,7 +12,24 @@ use gtk4::{glib, prelude::*};
 use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, Once};
+
+static ORT_INIT: Once = Once::new();
+
+fn init_ort_once(cfg: &Config) {
+    ORT_INIT.call_once(|| {
+        let Some(path) = cfg.model.resolved_ort_dylib_path() else { return; };
+        if !path.exists() {
+            tracing::warn!("ORT dylib not found at {:?}; Tier 2 disabled", path);
+            return;
+        }
+        tracing::info!("loading ONNX Runtime from {:?}", path);
+        match ort::init_from(&path) {
+            Ok(builder) => { builder.commit(); }
+            Err(e) => tracing::warn!("ORT init failed: {}; Tier 2 disabled", e),
+        }
+    });
+}
 
 mod args {
     #[derive(Debug)]
@@ -89,7 +106,7 @@ fn main() -> Result<()> {
         return cmd_status(&cfg);
     }
     if args.download_model {
-        return cmd_download_model();
+        return cmd_download_model(&cfg);
     }
     if args.model_info {
         return cmd_model_info(&cfg);
@@ -108,9 +125,15 @@ fn main() -> Result<()> {
 }
 
 fn cmd_status(cfg: &Config) -> Result<()> {
+    init_ort_once(cfg);
     let store = Store::new()?;
     let notes = store.load_all()?;
-    let classifier = Classifier::load(&cfg.model.execution_provider, &cfg.reminders.default_morning);
+    let (model_path, tokenizer_path) = cfg.model.resolved_paths();
+    let classifier = Classifier::load_with_paths(
+        &cfg.reminders.default_morning,
+        model_path,
+        tokenizer_path,
+    );
     println!("breadpad status");
     println!("  notes: {}", notes.len());
     println!(
@@ -126,7 +149,13 @@ fn cmd_status(cfg: &Config) -> Result<()> {
 }
 
 fn cmd_model_info(cfg: &Config) -> Result<()> {
-    let classifier = Classifier::load(&cfg.model.execution_provider, &cfg.reminders.default_morning);
+    init_ort_once(cfg);
+    let (model_path, tokenizer_path) = cfg.model.resolved_paths();
+    let classifier = Classifier::load_with_paths(
+        &cfg.reminders.default_morning,
+        model_path,
+        tokenizer_path,
+    );
     println!("model path: {:?}", classifier.model_path);
     println!("execution provider: {}", classifier.active_provider.as_str());
     println!(
@@ -136,16 +165,19 @@ fn cmd_model_info(cfg: &Config) -> Result<()> {
     Ok(())
 }
 
-fn cmd_download_model() -> Result<()> {
+fn cmd_download_model(cfg: &Config) -> Result<()> {
     // Placeholder — a real implementation would download a quantised ONNX model.
     // The exact model URL is left for the user to configure.
-    let dir = dirs::data_local_dir()
-        .unwrap_or_else(|| std::path::PathBuf::from("~/.local/share"))
-        .join("breadpad")
-        .join("model");
-    std::fs::create_dir_all(&dir)?;
-    println!("Model directory: {}", dir.display());
-    println!("Place classifier.onnx and tokenizer.json in that directory.");
+    let (model_path, tokenizer_path) = cfg.model.resolved_paths();
+    if let Some(dir) = model_path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    if let Some(dir) = tokenizer_path.parent() {
+        std::fs::create_dir_all(dir)?;
+    }
+    println!("Model path: {}", model_path.display());
+    println!("Tokenizer path: {}", tokenizer_path.display());
+    println!("Place the classifier ONNX and tokenizer JSON at those paths.");
     println!("(Automatic download not yet configured — set a model URL in breadpad.toml)");
     Ok(())
 }
@@ -221,7 +253,7 @@ fn cmd_calendar_list_uid(note_id: &str, cfg: &Config) -> Result<()> {
 }
 
 fn cmd_fire(id: &str, cfg: &Config) -> Result<()> {
-    let store = Store::new()?;
+    let store = Store::new()?.with_calendar_if_enabled(cfg);
     let note = match store.get_by_id(id)? {
         Some(n) => n,
         None => {
@@ -234,37 +266,7 @@ fn cmd_fire(id: &str, cfg: &Config) -> Result<()> {
         return Ok(());
     }
 
-    // Send notification via notify-send
-    let title = format!("[{}] breadpad reminder", note.note_type);
-
-    let mut cmd = std::process::Command::new("notify-send");
-    cmd.arg("--urgency=normal")
-        .arg(format!("--app-name=breadpad"))
-        .arg(&title)
-        .arg(&note.body);
-    for opt in &cfg.settings.snooze_options {
-        cmd.arg(format!("--action=snooze_{}={}", opt, humanize_snooze(opt)));
-    }
-    let output = cmd.output()?;
-
-    // If the user clicked a snooze action, notify-send prints the action key
-    if let Ok(action) = String::from_utf8(output.stdout) {
-        let action = action.trim();
-        if action.starts_with("snooze_") {
-            let key = action.trim_start_matches("snooze_");
-            if let Some(until) = resolve_snooze(key, cfg) {
-                let mut updated = note.clone();
-                store.update_note({
-                    updated.snoozed_until = Some(until);
-                    &updated
-                })?;
-                Scheduler::schedule(&updated)?;
-                return Ok(());
-            }
-        }
-    }
-
-    // Handle recurrence
+    // Schedule next recurrence before showing UI
     if note.rrule.is_some() {
         if let Some(next) = Scheduler::next_recurrence(&note, &cfg.reminders.default_morning) {
             let mut updated = note.clone();
@@ -275,6 +277,22 @@ fn cmd_fire(id: &str, cfg: &Config) -> Result<()> {
         }
     }
 
+    run_reminder_window(note, cfg)
+}
+
+fn run_reminder_window(note: breadpad_shared::types::Note, cfg: &Config) -> Result<()> {
+    let app = gtk4::Application::builder()
+        .application_id("com.breadway.breadpad.reminder")
+        .build();
+
+    let note = Arc::new(note);
+    let cfg = Arc::new(cfg.clone());
+
+    app.connect_activate(move |app| {
+        build_reminder_window(app, note.clone(), cfg.clone());
+    });
+
+    app.run_with_args::<String>(&[]);
     Ok(())
 }
 
@@ -304,10 +322,193 @@ fn resolve_snooze(key: &str, cfg: &Config) -> Option<chrono::DateTime<chrono::Ut
             let m = parts.get(1).copied().unwrap_or(0);
             let tomorrow = local.date_naive() + chrono::Duration::days(1);
             let naive = tomorrow.and_hms_opt(h, m, 0)?;
-            Some(naive.and_local_timezone(chrono::Local).unwrap().with_timezone(&chrono::Utc))
+            Some(breadpad_shared::util::local_naive_to_utc(naive))
         }
         _ => None,
     }
+}
+
+fn build_reminder_window(
+    app: &gtk4::Application,
+    note: Arc<breadpad_shared::types::Note>,
+    cfg: Arc<Config>,
+) {
+    let window = gtk4::ApplicationWindow::builder()
+        .application(app)
+        .title("breadpad reminder")
+        .default_width(420)
+        .default_height(1)
+        .decorated(false)
+        .resizable(false)
+        .build();
+
+    window.init_layer_shell();
+    window.set_layer(Layer::Overlay);
+    window.set_keyboard_mode(KeyboardMode::Exclusive);
+    window.auto_exclusive_zone_enable();
+
+    apply_css(&cfg);
+
+    let type_emoji = match note.note_type.as_str() {
+        "reminder" => "🔔",
+        "todo"     => "✅",
+        "idea"     => "💡",
+        "question" => "❓",
+        _          => "📝",
+    };
+
+    let outer = gtk4::Box::builder()
+        .orientation(gtk4::Orientation::Vertical)
+        .spacing(0)
+        .css_classes(["reminder-window"])
+        .build();
+
+    // Header strip
+    let header = gtk4::Box::builder()
+        .orientation(gtk4::Orientation::Horizontal)
+        .spacing(8)
+        .margin_top(16)
+        .margin_bottom(8)
+        .margin_start(20)
+        .margin_end(20)
+        .build();
+
+    header.append(
+        &gtk4::Label::builder()
+            .label(type_emoji)
+            .css_classes(["reminder-emoji"])
+            .build(),
+    );
+    header.append(
+        &gtk4::Label::builder()
+            .label("Reminder")
+            .css_classes(["reminder-title"])
+            .hexpand(true)
+            .xalign(0.0)
+            .build(),
+    );
+
+    // Optional time label
+    if let Some(t) = note.effective_time() {
+        let local: chrono::DateTime<chrono::Local> = t.into();
+        header.append(
+            &gtk4::Label::builder()
+                .label(&local.format("%H:%M").to_string())
+                .css_classes(["reminder-time"])
+                .build(),
+        );
+    }
+
+    outer.append(&header);
+
+    // Body
+    let body_label = gtk4::Label::builder()
+        .label(&note.body)
+        .css_classes(["reminder-body"])
+        .wrap(true)
+        .xalign(0.0)
+        .margin_start(20)
+        .margin_end(20)
+        .margin_bottom(16)
+        .build();
+    outer.append(&body_label);
+
+    // Separator
+    outer.append(&gtk4::Separator::builder()
+        .orientation(gtk4::Orientation::Horizontal)
+        .build());
+
+    // Button row
+    let btn_row = gtk4::Box::builder()
+        .orientation(gtk4::Orientation::Horizontal)
+        .spacing(8)
+        .margin_top(12)
+        .margin_bottom(12)
+        .margin_start(16)
+        .margin_end(16)
+        .build();
+
+    let dismiss_btn = gtk4::Button::builder()
+        .label("Dismiss")
+        .css_classes(["reminder-dismiss"])
+        .build();
+
+    // Snooze popover
+    let snooze_popover = gtk4::Popover::new();
+    let snooze_vbox = gtk4::Box::builder()
+        .orientation(gtk4::Orientation::Vertical)
+        .spacing(4)
+        .margin_top(8)
+        .margin_bottom(8)
+        .margin_start(8)
+        .margin_end(8)
+        .build();
+
+    for opt in &cfg.settings.snooze_options {
+        let label = humanize_snooze(opt).to_string();
+        let btn = gtk4::Button::builder()
+            .label(&label)
+            .css_classes(["snooze-option"])
+            .build();
+        let key = opt.clone();
+        let note_c = note.clone();
+        let cfg_c = cfg.clone();
+        let win_c = window.clone();
+        let popover_c = snooze_popover.clone();
+        btn.connect_clicked(move |_| {
+            if let Some(until) = resolve_snooze(&key, &cfg_c) {
+                if let Ok(store) = Store::new().map(|s| s.with_calendar_if_enabled(&cfg_c)) {
+                    let mut updated = note_c.as_ref().clone();
+                    updated.snoozed_until = Some(until);
+                    let _ = store.update_note(&updated);
+                    let _ = Scheduler::schedule(&updated);
+                }
+            }
+            popover_c.popdown();
+            win_c.close();
+        });
+        snooze_vbox.append(&btn);
+    }
+    snooze_popover.set_child(Some(&snooze_vbox));
+
+    let snooze_btn = gtk4::MenuButton::builder()
+        .label("Snooze")
+        .css_classes(["reminder-snooze"])
+        .popover(&snooze_popover)
+        .build();
+
+    let done_btn = gtk4::Button::builder()
+        .label("Done  ✓")
+        .css_classes(["confirm-button", "reminder-done"])
+        .hexpand(true)
+        .build();
+
+    {
+        let note_c = note.clone();
+        let cfg_c = cfg.clone();
+        let win_c = window.clone();
+        done_btn.connect_clicked(move |_| {
+            if let Ok(store) = Store::new().map(|s| s.with_calendar_if_enabled(&cfg_c)) {
+                let mut updated = note_c.as_ref().clone();
+                updated.mark_done();
+                let _ = store.update_note(&updated);
+            }
+            win_c.close();
+        });
+    }
+
+    {
+        let win_c = window.clone();
+        dismiss_btn.connect_clicked(move |_| { win_c.close(); });
+    }
+
+    btn_row.append(&dismiss_btn);
+    btn_row.append(&snooze_btn);
+    btn_row.append(&done_btn);
+    outer.append(&btn_row);
+
+    window.set_child(Some(&outer));
+    window.present();
 }
 
 fn run_popup(preset_type: Option<String>, no_classify: bool, cfg: Config) -> Result<()> {
@@ -321,10 +522,11 @@ fn run_popup(preset_type: Option<String>, no_classify: bool, cfg: Config) -> Res
     let cfg = Arc::new(cfg);
 
     app.connect_activate(move |app| {
-        let cfg = cfg.clone();
-        let workspace = workspace.clone();
-        let preset_type = preset_type.clone();
-        build_window(app, cfg, workspace, preset_type, no_classify);
+        if let Some(win) = app.windows().first().cloned() {
+            win.close();
+            return;
+        }
+        build_window(app, cfg.clone(), workspace.clone(), preset_type.clone(), no_classify);
     });
 
     let code = app.run_with_args::<String>(&[]);
@@ -475,12 +677,13 @@ fn build_window(
                 return;
             }
             let note_type = selected_type.borrow().clone();
-
-            // Classify and save synchronously. Tier 1 + 2 finish in <100ms.
-            // Tier 3 (Ollama) only fires for ambiguous inputs; the brief pause
-            // is acceptable since the user has already committed the note.
-            save_note_classified(&text, note_type, no_classify, cfg.clone(), workspace.clone());
+            let cfg_c = cfg.clone();
+            let ws_c = workspace.clone();
+            // Close first so the popup disappears immediately, then save.
             win.close();
+            glib::idle_add_local_once(move || {
+                save_note_classified(&text, note_type, no_classify, cfg_c, ws_c);
+            });
         }
     };
 
@@ -523,9 +726,12 @@ fn save_note_classified(
     let mut note = Note::new(text.into(), user_type.clone(), workspace);
 
     if !no_classify {
-        let mut classifier = Classifier::load(
-            &cfg.model.execution_provider,
+        init_ort_once(&cfg);
+        let (model_path, tokenizer_path) = cfg.model.resolved_paths();
+        let mut classifier = Classifier::load_with_paths(
             &cfg.reminders.default_morning,
+            model_path,
+            tokenizer_path,
         )
         .with_ollama(cfg.model.ollama.clone());
         let result = classifier.classify(text);
@@ -565,8 +771,12 @@ fn apply_css(_cfg: &Config) {
 
     let provider = gtk4::CssProvider::new();
     provider.load_from_string(&css);
+    let Some(display) = gtk4::gdk::Display::default() else {
+        tracing::warn!("no default display; skipping CSS provider");
+        return;
+    };
     gtk4::style_context_add_provider_for_display(
-        &gtk4::gdk::Display::default().unwrap(),
+        &display,
         &provider,
         gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
     );

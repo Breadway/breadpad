@@ -20,3 +20,4 @@ tokio.workspace = true
 chrono.workspace = true
 gtk4.workspace = true
 dirs.workspace = true
+futures-channel = "0.3"

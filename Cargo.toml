@@ -24,7 +24,7 @@ chrono = { version = "0.4", features = ["serde"] }
 rrule = "0.12"
 tokio = { version = "1", features = ["full"] }
 zbus = { version = "4", default-features = false, features = ["tokio"] }
-ort = { version = "2.0.0-rc.12", features = ["download-binaries"] }
+ort = { version = "2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "api-24", "load-dynamic"] }
 ndarray = "0.16"
 tokenizers = { version = "0.21", default-features = false, features = ["http", "fancy-regex"] }
 gtk4 = { version = "0.11", features = ["v4_12"] }

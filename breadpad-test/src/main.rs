@@ -67,6 +67,9 @@ enum TierArg {
     Three,
     #[value(name = "all")]
     All,
+    /// Production path: Tier 1 → Tier 2 (no Ollama)
+    #[value(name = "pipeline")]
+    Pipeline,
 }
 
 impl TierArg {
@@ -76,6 +79,7 @@ impl TierArg {
             TierArg::Two => "2",
             TierArg::Three => "3",
             TierArg::All => "all",
+            TierArg::Pipeline => "pipeline",
         }
     }
 }
@@ -142,7 +146,14 @@ fn classify_with_tier(text: &str, tier: &TierArg) -> ClassificationResult {
     match tier {
         TierArg::One => parse_rule_based(text, DEFAULT_MORNING),
         TierArg::Two => {
-            let mut clf = Classifier::load("auto", DEFAULT_MORNING);
+            let mut clf = Classifier::load(DEFAULT_MORNING);
+            clf.classify_tier2_only(text).unwrap_or_else(|| {
+                eprintln!("warning: ONNX model not loaded; Tier 2 unavailable");
+                parse_rule_based(text, DEFAULT_MORNING)
+            })
+        }
+        TierArg::Pipeline => {
+            let mut clf = Classifier::load(DEFAULT_MORNING);
             clf.classify(text)
         }
         TierArg::Three | TierArg::All => {
@@ -152,7 +163,7 @@ fn classify_with_tier(text: &str, tier: &TierArg) -> ClassificationResult {
                 confidence_threshold: 0.6,
                 enabled: true,
             };
-            let mut clf = Classifier::load("auto", DEFAULT_MORNING).with_ollama(ollama);
+            let mut clf = Classifier::load(DEFAULT_MORNING).with_ollama(ollama);
             clf.classify(text)
         }
     }
@@ -444,8 +455,35 @@ fn cmd_edit(index: usize, corpus_path: &Path) -> Result<()> {
     Ok(())
 }
 
+fn init_ort() {
+    use std::path::PathBuf;
+    // Prefer the system CPU-only library for testing — no Ryzen AI startup overhead.
+    // Fall back to the Ryzen AI SDK library if the system one isn't installed.
+    let candidates: Vec<PathBuf> = {
+        let mut v = vec![
+            PathBuf::from("/usr/lib/libonnxruntime.so"),
+            PathBuf::from("/usr/local/lib/libonnxruntime.so"),
+        ];
+        if let Some(home) = dirs::home_dir() {
+            v.push(home.join(".local/share/ryzen-ai-1.7.1/lib/libonnxruntime.so"));
+            v.push(home.join(".local/share/ryzen-ai/lib/libonnxruntime.so"));
+        }
+        if let Ok(root) = std::env::var("RYZEN_AI_INSTALLATION_PATH") {
+            v.push(PathBuf::from(root).join("lib/libonnxruntime.so"));
+        }
+        v.push(PathBuf::from("/opt/ryzen-ai/lib/libonnxruntime.so"));
+        v
+    };
+    if let Some(path) = candidates.into_iter().find(|p| p.is_file()) {
+        if let Err(e) = ort::init_from(&path).map(|b| b.commit()) {
+            eprintln!("warning: failed to load ORT from {:?}: {}", path, e);
+        }
+    }
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    init_ort();
 
     match cli.command {
         Commands::Run { corpus, tier, format } => {

@@ -1,4 +1,5 @@
 use crate::types::{ClassificationResult, NoteType, RecurrenceRule};
+use crate::util::local_naive_to_utc;
 use chrono::{DateTime, Datelike, Duration, Local, NaiveTime, Timelike, Utc, Weekday};
 use regex::Regex;
 use std::sync::OnceLock;
@@ -22,7 +23,7 @@ static PATTERNS: OnceLock<Patterns> = OnceLock::new();
 fn patterns() -> &'static Patterns {
     PATTERNS.get_or_init(|| Patterns {
         at_time: Regex::new(r"(?i)\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?").unwrap(),
-        in_duration: Regex::new(r"(?i)\bin\s+(\d+)\s+(minute|hour|day)s?").unwrap(),
+        in_duration: Regex::new(r"(?i)\bin\s+(\d+)\s+(second|minute|hour|day|week)s?").unwrap(),
         // Word-form durations: "in an hour", "in a couple of hours", "in half an hour"
         in_duration_word: Regex::new(
             r"(?i)\bin\s+(?:an?\s+hour|a\s+couple\s+of\s+hours?|a\s+few\s+hours?|half\s+an?\s+hour|an?\s+minutes?|a\s+couple\s+of\s+minutes?)"
@@ -100,7 +101,7 @@ fn next_occurrence_of_weekday(wd: Weekday, time: NaiveTime) -> DateTime<Utc> {
     };
     let target_date = local.date_naive() + Duration::days(days_ahead);
     let naive = target_date.and_time(time);
-    naive.and_local_timezone(Local).unwrap().with_timezone(&Utc)
+    local_naive_to_utc(naive)
 }
 
 pub fn parse_rule_based(text: &str, default_morning: &str) -> ClassificationResult {
@@ -209,7 +210,7 @@ pub fn parse_rule_based(text: &str, default_morning: &str) -> ClassificationResu
             } else {
                 (local.date_naive() + Duration::days(1)).and_time(t)
             };
-            extracted_time = Some(naive.and_local_timezone(Local).unwrap().with_timezone(&Utc));
+            extracted_time = Some(local_naive_to_utc(naive));
             let full_match = caps.get(0).unwrap().as_str();
             cleaned = cleaned.replacen(full_match, "", 1).trim().to_string();
         }
@@ -218,9 +219,11 @@ pub fn parse_rule_based(text: &str, default_morning: &str) -> ClassificationResu
             let n: i64 = caps.get(1).unwrap().as_str().parse().unwrap_or(1);
             let unit = caps.get(2).unwrap().as_str().to_lowercase();
             let delta = match unit.as_str() {
+                "second" => Duration::seconds(n),
                 "minute" => Duration::minutes(n),
                 "hour" => Duration::hours(n),
                 "day" => Duration::days(n),
+                "week" => Duration::weeks(n),
                 _ => Duration::minutes(n),
             };
             extracted_time = Some(Utc::now() + delta);
@@ -254,7 +257,7 @@ pub fn parse_rule_based(text: &str, default_morning: &str) -> ClassificationResu
             };
             let local = Local::now();
             let target = (local.date_naive() + Duration::days(1)).and_time(t);
-            extracted_time = Some(target.and_local_timezone(Local).unwrap().with_timezone(&Utc));
+            extracted_time = Some(local_naive_to_utc(target));
             cleaned = cleaned.replacen(m.as_str(), "", 1).trim().to_string();
         }
         // One-off: next <weekday>
@@ -273,7 +276,7 @@ pub fn parse_rule_based(text: &str, default_morning: &str) -> ClassificationResu
             } else {
                 (local.date_naive() + Duration::days(1)).and_time(anchor)
             };
-            extracted_time = Some(target.and_local_timezone(Local).unwrap().with_timezone(&Utc));
+            extracted_time = Some(local_naive_to_utc(target));
             cleaned = cleaned.replacen(m.as_str(), "", 1).trim().to_string();
         }
     }
@@ -860,6 +863,23 @@ fn infer_type(text: &str, has_time: bool, has_rrule: bool) -> NoteType {
         || lower.starts_with("finish ")
         || lower.starts_with("write ")
         || lower.starts_with("update ")
+        || lower.starts_with("prepare ")
+        || lower.starts_with("schedule ")
+        || lower.starts_with("organize ")
+        || lower.starts_with("deploy ")
+        || lower.starts_with("install ")
+        || lower.starts_with("send ")
+        || lower.starts_with("submit ")
+        || lower.starts_with("create ")
+        || lower.starts_with("setup ")
+        || lower.starts_with("restore ")
+        || lower.starts_with("archive ")
+        || lower.starts_with("export ")
+        || lower.starts_with("import ")
+        || lower.starts_with("approve ")
+        || lower.starts_with("configure ")
+        || lower.starts_with("refactor ")
+        || lower.starts_with("review ")
     {
         return NoteType::Todo;
     }
@@ -867,13 +887,21 @@ fn infer_type(text: &str, has_time: bool, has_rrule: bool) -> NoteType {
         || lower.starts_with("idea:")
         || lower.contains("could ")
         || lower.contains("maybe ")
-        || lower.contains("should we ")
+        || lower.starts_with("should we ")
     {
         return NoteType::Idea;
     }
     if lower.starts_with("why ")
         || lower.starts_with("how ")
-        || lower.starts_with("what ")
+        || (lower.starts_with("what ") && !lower.starts_with("what if "))
+        || lower.starts_with("when ")
+        || lower.starts_with("where ")
+        || lower.starts_with("who ")
+        || lower.starts_with("will ")
+        || lower.starts_with("is ")
+        || lower.starts_with("are ")
+        || lower.starts_with("did ")
+        || lower.starts_with("does ")
         || lower.ends_with('?')
     {
         return NoteType::Question;

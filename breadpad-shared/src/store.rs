@@ -36,6 +36,14 @@ impl Store {
         self
     }
 
+    pub fn with_calendar_if_enabled(self, cfg: &crate::config::Config) -> Self {
+        if cfg.calendar.enabled {
+            self.with_calendar(cfg.calendar.clone())
+        } else {
+            self
+        }
+    }
+
     pub fn load_all(&self) -> Result<Vec<Note>> {
         self.load_from(&self.notes_path)
     }
@@ -84,12 +92,14 @@ impl Store {
 
     pub fn update_note(&self, updated: &Note) -> Result<()> {
         self.rewrite_notes(|note| {
-            if note.id == updated.id {
-                updated.clone()
-            } else {
-                note
+            if note.id == updated.id { updated.clone() } else { note }
+        })?;
+        if let Some(cal_cfg) = &self.calendar {
+            if cal_cfg.enabled && (updated.time.is_some() || updated.rrule.is_some()) {
+                spawn_caldav_push(updated.clone(), cal_cfg.clone());
             }
-        })
+        }
+        Ok(())
     }
 
     pub fn delete_note(&self, id: &str) -> Result<()> {

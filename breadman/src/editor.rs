@@ -1,10 +1,11 @@
 use breadpad_shared::{
     parser::parse_rule_based,
+    scheduler::Scheduler,
     store::Store,
     types::{Note, NoteType, RecurrenceRule},
 };
 use chrono::{Local, TimeZone, Utc};
-use gtk4::prelude::*;
+use gtk4::{glib, prelude::*};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -13,8 +14,9 @@ pub fn build_editor_popover(
     note: &Note,
     store: Arc<Store>,
     morning: String,
-    on_save: impl Fn(Note) + 'static,
-    on_delete: impl Fn() + 'static,
+    on_save: Rc<dyn Fn(Note)>,
+    on_delete: Rc<dyn Fn()>,
+    on_error: Rc<dyn Fn(String)>,
 ) -> gtk4::Popover {
     let popover = gtk4::Popover::new();
     popover.set_has_arrow(false);
@@ -86,7 +88,7 @@ pub fn build_editor_popover(
     btn_row.append(&save_btn);
     vbox.append(&btn_row);
 
-    // Delete: two-click confirm using a single handler and shared state
+    // Delete: two-click confirm
     let confirming = Rc::new(RefCell::new(false));
     {
         let confirming = confirming.clone();
@@ -94,16 +96,32 @@ pub fn build_editor_popover(
         let note_id = note.id.clone();
         let store_del = store.clone();
         let popover_del = popover.clone();
+        let on_delete = Rc::clone(&on_delete);
+        let on_error = Rc::clone(&on_error);
 
         delete_btn.connect_clicked(move |_| {
-            let currently = *confirming.borrow();
-            if currently {
-                if let Err(e) = store_del.delete_note(&note_id) {
-                    tracing::error!("failed to delete note: {}", e);
-                } else {
-                    on_delete();
-                }
-                popover_del.popdown();
+            if *confirming.borrow() {
+                let store = store_del.clone();
+                let id = note_id.clone();
+                let on_delete = Rc::clone(&on_delete);
+                let on_error = Rc::clone(&on_error);
+                let popover = popover_del.clone();
+                spawn_bg(
+                    move || -> anyhow::Result<()> {
+                        store.delete_note(&id)?;
+                        if let Err(e) = Scheduler::cancel(&id) {
+                            tracing::warn!("failed to cancel timer for {}: {}", id, e);
+                        }
+                        Ok(())
+                    },
+                    move |result| {
+                        match result {
+                            Ok(()) => on_delete(),
+                            Err(e) => on_error(format!("delete failed: {}", e)),
+                        }
+                        popover.popdown();
+                    },
+                );
             } else {
                 *confirming.borrow_mut() = true;
                 delete_btn_label.set_label("Sure?");
@@ -112,44 +130,75 @@ pub fn build_editor_popover(
     }
 
     // Save
-    let note_clone = note.clone();
-    let popover_save = popover.clone();
+    {
+        let note_clone = note.clone();
+        let popover_save = popover.clone();
+        let on_error = Rc::clone(&on_error);
 
-    save_btn.connect_clicked(move |_| {
-        let mut updated = note_clone.clone();
-        updated.body = body_entry.text().to_string();
+        save_btn.connect_clicked(move |_| {
+            // Read all field values on the main thread before handing off.
+            let mut updated = note_clone.clone();
+            updated.body = body_entry.text().to_string();
+            updated.note_type = NoteType::from_str(
+                NoteType::all_builtin()
+                    .get(type_combo.selected() as usize)
+                    .copied()
+                    .unwrap_or("note"),
+            );
+            let time_str = time_entry.text().to_string();
+            updated.time = if time_str.trim().is_empty() {
+                None
+            } else {
+                parse_time_field(&time_str, &morning)
+            };
+            let rrule_text = rrule_entry.text().to_string();
+            updated.rrule = if rrule_text.trim().is_empty() {
+                None
+            } else {
+                Some(RecurrenceRule::new(rrule_text))
+            };
 
-        updated.note_type = NoteType::from_str(
-            NoteType::all_builtin()
-                .get(type_combo.selected() as usize)
-                .copied()
-                .unwrap_or("note"),
-        );
+            popover_save.popdown();
 
-        let time_str = time_entry.text().to_string();
-        updated.time = if time_str.trim().is_empty() {
-            None
-        } else {
-            parse_time_field(&time_str, &morning)
-        };
-
-        let rrule_text = rrule_entry.text().to_string();
-        updated.rrule = if rrule_text.trim().is_empty() {
-            None
-        } else {
-            Some(RecurrenceRule::new(rrule_text))
-        };
-
-        if let Err(e) = store.update_note(&updated) {
-            tracing::error!("failed to update note: {}", e);
-        } else {
-            on_save(updated);
-        }
-        popover_save.popdown();
-    });
+            let store_bg = store.clone();
+            let on_save = Rc::clone(&on_save);
+            let on_error = Rc::clone(&on_error);
+            spawn_bg(
+                move || -> anyhow::Result<Note> {
+                    store_bg.update_note(&updated)?;
+                    if let Err(e) = Scheduler::cancel(&updated.id) {
+                        tracing::warn!("cancel before reschedule: {}", e);
+                    }
+                    if updated.time.is_some() || updated.rrule.is_some() {
+                        Scheduler::schedule(&updated)?;
+                    }
+                    Ok(updated)
+                },
+                move |result| match result {
+                    Ok(note) => on_save(note),
+                    Err(e) => on_error(format!("update failed: {}", e)),
+                },
+            );
+        });
+    }
 
     popover.set_child(Some(&vbox));
     popover
+}
+
+fn spawn_bg<F, T, C>(work: F, then: C)
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+    C: FnOnce(T) + 'static,
+{
+    let (tx, rx) = futures_channel::oneshot::channel::<T>();
+    std::thread::spawn(move || { let _ = tx.send(work()); });
+    glib::MainContext::default().spawn_local(async move {
+        if let Ok(result) = rx.await {
+            then(result);
+        }
+    });
 }
 
 fn parse_time_field(s: &str, morning: &str) -> Option<chrono::DateTime<Utc>> {

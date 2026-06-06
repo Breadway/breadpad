@@ -502,5 +502,1221 @@
     "expected_body": null,
     "expected_rrule": null,
     "notes": "'at 3pm' matches rule-based despite informal phrasing around it"
+  },
+  {
+    "input": "prepare the presentation for tomorrow",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "prepare the presentation for",
+    "expected_rrule": null,
+    "notes": "'tomorrow' triggers time extraction → Reminder; body has 'tomorrow' stripped"
+  },
+  {
+    "input": "schedule a meeting with the team",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "schedule a meeting with the team",
+    "expected_rrule": null,
+    "notes": "starts with 'schedule'"
+  },
+  {
+    "input": "organize the files in the cabinet",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "organize the files in the cabinet",
+    "expected_rrule": null,
+    "notes": "starts with 'organize'"
+  },
+  {
+    "input": "create a backup of the database",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "create a backup of the database",
+    "expected_rrule": null,
+    "notes": "starts with 'create'"
+  },
+  {
+    "input": "setup the new development environment",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "setup the new development environment",
+    "expected_rrule": null,
+    "notes": "starts with 'setup'"
+  },
+  {
+    "input": "deploy the latest version to production",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "deploy the latest version to production",
+    "expected_rrule": null,
+    "notes": "starts with 'deploy'"
+  },
+  {
+    "input": "test the new feature on staging",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "'test' not a recognized prefix (test results / test suite false-positive risk); Tier 1 → note"
+  },
+  {
+    "input": "review the submitted pull requests",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "review the submitted pull requests",
+    "expected_rrule": null,
+    "notes": "starts with 'review'"
+  },
+  {
+    "input": "approve the design mockups from UX",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "approve the design mockups from UX",
+    "expected_rrule": null,
+    "notes": "starts with 'approve'"
+  },
+  {
+    "input": "merge the feature branch into main",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "'merge' not a recognized prefix (merge conflict / merge request false-positive risk); Tier 1 → note"
+  },
+  {
+    "input": "configure the CI/CD pipeline settings",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "configure the CI/CD pipeline settings",
+    "expected_rrule": null,
+    "notes": "starts with 'configure'"
+  },
+  {
+    "input": "optimize the database queries",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "'optimize' not a recognized prefix; Tier 1 → note"
+  },
+  {
+    "input": "refactor the authentication module",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "refactor the authentication module",
+    "expected_rrule": null,
+    "notes": "starts with 'refactor'"
+  },
+  {
+    "input": "document the API endpoints in the README",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "'document' not a recognized prefix (document is ready / document outlines… false-positive risk); Tier 1 → note"
+  },
+  {
+    "input": "install the new version of Node.js",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "install the new version of Node.js",
+    "expected_rrule": null,
+    "notes": "starts with 'install'"
+  },
+  {
+    "input": "verify the data migration was successful",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "'verify' not a recognized prefix; Tier 1 → note"
+  },
+  {
+    "input": "validate the user input on the form",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "'validate' not a recognized prefix; Tier 1 → note"
+  },
+  {
+    "input": "export the data to a CSV file",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "export the data to a CSV file",
+    "expected_rrule": null,
+    "notes": "starts with 'export'"
+  },
+  {
+    "input": "import the user data from the old system",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "import the user data from the old system",
+    "expected_rrule": null,
+    "notes": "starts with 'import'"
+  },
+  {
+    "input": "restore the database from last backup",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "restore the database from last backup",
+    "expected_rrule": null,
+    "notes": "starts with 'restore'"
+  },
+  {
+    "input": "archive the old project files",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "archive the old project files",
+    "expected_rrule": null,
+    "notes": "starts with 'archive'"
+  },
+  {
+    "input": "setup meeting at 9am",
+    "expected_type": "reminder",
+    "expected_time": "09:00",
+    "expected_body": "setup meeting",
+    "expected_rrule": null,
+    "notes": "time stripped for setup + time combo"
+  },
+  {
+    "input": "review code at 2pm",
+    "expected_type": "reminder",
+    "expected_time": "14:00",
+    "expected_body": "review code",
+    "expected_rrule": null,
+    "notes": "time stripped for review + time combo"
+  },
+  {
+    "input": "deploy release at 4pm",
+    "expected_type": "reminder",
+    "expected_time": "16:00",
+    "expected_body": "deploy release",
+    "expected_rrule": null,
+    "notes": "time stripped for deploy + time combo"
+  },
+  {
+    "input": "call at 1pm",
+    "expected_type": "reminder",
+    "expected_time": "13:00",
+    "expected_body": "call",
+    "expected_rrule": null,
+    "notes": "minimal reminder with time"
+  },
+  {
+    "input": "at 5pm check status",
+    "expected_type": "reminder",
+    "expected_time": "17:00",
+    "expected_body": "check status",
+    "expected_rrule": null,
+    "notes": "time at start of sentence"
+  },
+  {
+    "input": "standup at 10:00",
+    "expected_type": "reminder",
+    "expected_time": "10:00",
+    "expected_body": "standup",
+    "expected_rrule": null,
+    "notes": "24h time in HH:MM format"
+  },
+  {
+    "input": "presentation at 11:45",
+    "expected_type": "reminder",
+    "expected_time": "11:45",
+    "expected_body": "presentation",
+    "expected_rrule": null,
+    "notes": "24h time with minutes"
+  },
+  {
+    "input": "therapy at 4pm tomorrow",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "therapy",
+    "expected_rrule": null,
+    "notes": "time on specific day (not assertable)"
+  },
+  {
+    "input": "breakfast at 7:30 in the morning",
+    "expected_type": "reminder",
+    "expected_time": "07:30",
+    "expected_body": "breakfast",
+    "expected_rrule": null,
+    "notes": "explicit time with morning modifier"
+  },
+  {
+    "input": "dinner at 6pm in the evening",
+    "expected_type": "reminder",
+    "expected_time": "18:00",
+    "expected_body": "dinner",
+    "expected_rrule": null,
+    "notes": "explicit time with evening modifier"
+  },
+  {
+    "input": "in 15 minutes finish the report",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "finish the report",
+    "expected_rrule": null,
+    "notes": "relative time at start"
+  },
+  {
+    "input": "in 5 minutes go to the meeting",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "go to the meeting",
+    "expected_rrule": null,
+    "notes": "relative 5 minute timer"
+  },
+  {
+    "input": "in 30 seconds alert the team",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "alert the team",
+    "expected_rrule": null,
+    "notes": "relative seconds"
+  },
+  {
+    "input": "in 1 day start the project",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "start the project",
+    "expected_rrule": null,
+    "notes": "relative 1 day"
+  },
+  {
+    "input": "in 2 weeks review progress",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "review progress",
+    "expected_rrule": null,
+    "notes": "relative weeks"
+  },
+  {
+    "input": "monday morning call the plumber",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "bare weekday without 'next'/'every' prefix not parsed by Tier 1; Tier 1 → note"
+  },
+  {
+    "input": "wednesday at 2pm budget review",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "budget review",
+    "expected_rrule": null,
+    "notes": "specific day with explicit time"
+  },
+  {
+    "input": "thursday evening pack for trip",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "bare weekday without 'next'/'every' prefix not parsed by Tier 1; Tier 1 → note"
+  },
+  {
+    "input": "every monday morning team standup",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "team standup",
+    "expected_rrule": "BYDAY=MO",
+    "notes": "day + morning in recurrence"
+  },
+  {
+    "input": "every wednesday at 10am planning session",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "planning session",
+    "expected_rrule": "BYDAY=WE",
+    "notes": "day + explicit time in recurrence"
+  },
+  {
+    "input": "every thursday evening review tickets",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "review tickets",
+    "expected_rrule": "BYDAY=TH",
+    "notes": "day + evening in recurrence"
+  },
+  {
+    "input": "every saturday at 2pm grocery shopping",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "grocery shopping",
+    "expected_rrule": "BYDAY=SA",
+    "notes": "weekend recurrence with time"
+  },
+  {
+    "input": "every sunday at 6pm family dinner",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "family dinner",
+    "expected_rrule": "BYDAY=SU",
+    "notes": "weekly family event"
+  },
+  {
+    "input": "every month on the 15th pay rent",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "monthly recurrence not supported by Tier 1 parser; Tier 1 → note"
+  },
+  {
+    "input": "every 2 weeks sync with manager",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "biweekly 'every N weeks' not supported by Tier 1 parser; Tier 1 → note"
+  },
+  {
+    "input": "twice a week go to gym",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "frequency phrase 'twice a week' not supported by Tier 1 parser; Tier 1 → note"
+  },
+  {
+    "input": "three times a day take pills",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "frequency phrase 'three times a day' not supported by Tier 1 parser; Tier 1 → note"
+  },
+  {
+    "input": "what if we used Rust for the backend",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": "what if we used Rust for the backend",
+    "expected_rrule": null,
+    "notes": "what if idea about tech choice"
+  },
+  {
+    "input": "what if notifications were real-time",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": "what if notifications were real-time",
+    "expected_rrule": null,
+    "notes": "what if idea about features"
+  },
+  {
+    "input": "what if users could customize the theme",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": "what if users could customize the theme",
+    "expected_rrule": null,
+    "notes": "what if idea about customization"
+  },
+  {
+    "input": "maybe add a search feature",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": "maybe add a search feature",
+    "expected_rrule": null,
+    "notes": "maybe idea"
+  },
+  {
+    "input": "could we improve performance",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": "could we improve performance",
+    "expected_rrule": null,
+    "notes": "could idea"
+  },
+  {
+    "input": "should we migrate to PostgreSQL",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": "should we migrate to PostgreSQL",
+    "expected_rrule": null,
+    "notes": "should idea"
+  },
+  {
+    "input": "idea: add file upload support",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "idea: prefix"
+  },
+  {
+    "input": "idea: implement caching layer",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "idea: prefix 2"
+  },
+  {
+    "input": "idea: mobile app version",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "idea: prefix 3"
+  },
+  {
+    "input": "why is the tests failing",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": "why is the tests failing",
+    "expected_rrule": null,
+    "notes": "why question"
+  },
+  {
+    "input": "why does it timeout on large datasets",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": "why does it timeout on large datasets",
+    "expected_rrule": null,
+    "notes": "why question 2"
+  },
+  {
+    "input": "how can we reduce memory usage",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": "how can we reduce memory usage",
+    "expected_rrule": null,
+    "notes": "how question"
+  },
+  {
+    "input": "how do I run the dev server",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": "how do I run the dev server",
+    "expected_rrule": null,
+    "notes": "how question 2"
+  },
+  {
+    "input": "what time is the meeting tomorrow",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "'tomorrow' triggers time extraction → Reminder overrides the 'what' question signal; time not asserted (date-relative)"
+  },
+  {
+    "input": "what should we do next",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": "what should we do next",
+    "expected_rrule": null,
+    "notes": "what question"
+  },
+  {
+    "input": "can we ship this today",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "'can' not a recognized question prefix (can opener false-positive risk); Tier 1 → note"
+  },
+  {
+    "input": "will this break backward compatibility",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": "will this break backward compatibility",
+    "expected_rrule": null,
+    "notes": "will question"
+  },
+  {
+    "input": "should I merge this PR",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "'should I' not recognized ('should we' is Idea, but 'should I' is not a known pattern); Tier 1 → note"
+  },
+  {
+    "input": "could this cause issues",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": "could this cause issues",
+    "expected_rrule": null,
+    "notes": "contains 'could ' → Idea (Tier 1 cannot distinguish idea-could from question-could without ?)"
+  },
+  {
+    "input": "have we tested on production data",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "'have' not a recognized question prefix ('have some coffee' false-positive risk); Tier 1 → note"
+  },
+  {
+    "input": "are the tests passing",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": "are the tests passing",
+    "expected_rrule": null,
+    "notes": "are question"
+  },
+  {
+    "input": "did we document the API changes",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": "did we document the API changes",
+    "expected_rrule": null,
+    "notes": "did question"
+  },
+  {
+    "input": "the bug is only on Firefox",
+    "expected_type": "note",
+    "expected_time": null,
+    "expected_body": "the bug is only on Firefox",
+    "expected_rrule": null,
+    "notes": "observation note"
+  },
+  {
+    "input": "build time increased after adding new dependency",
+    "expected_type": "note",
+    "expected_time": null,
+    "expected_body": "build time increased after adding new dependency",
+    "expected_rrule": null,
+    "notes": "observation about build"
+  },
+  {
+    "input": "need to research caching strategies",
+    "expected_type": "note",
+    "expected_time": null,
+    "expected_body": "need to research caching strategies",
+    "expected_rrule": null,
+    "notes": "research note"
+  },
+  {
+    "input": "the PR has merge conflicts",
+    "expected_type": "note",
+    "expected_time": null,
+    "expected_body": "the PR has merge conflicts",
+    "expected_rrule": null,
+    "notes": "status note"
+  },
+  {
+    "input": "performance improved by 40% after optimization",
+    "expected_type": "note",
+    "expected_time": null,
+    "expected_body": "performance improved by 40% after optimization",
+    "expected_rrule": null,
+    "notes": "achievement note"
+  },
+  {
+    "input": "saw the new UI design mockups",
+    "expected_type": "note",
+    "expected_time": null,
+    "expected_body": "saw the new UI design mockups",
+    "expected_rrule": null,
+    "notes": "discovery note"
+  },
+  {
+    "input": "the server went down during the demo",
+    "expected_type": "note",
+    "expected_time": null,
+    "expected_body": "the server went down during the demo",
+    "expected_rrule": null,
+    "notes": "incident note"
+  },
+  {
+    "input": "learned about the new feature from the docs",
+    "expected_type": "note",
+    "expected_time": null,
+    "expected_body": "learned about the new feature from the docs",
+    "expected_rrule": null,
+    "notes": "learning note"
+  },
+  {
+    "input": "client prefers to use Postgres instead of MySQL",
+    "expected_type": "note",
+    "expected_time": null,
+    "expected_body": "client prefers to use Postgres instead of MySQL",
+    "expected_rrule": null,
+    "notes": "preference note"
+  },
+  {
+    "input": "noticed the memory leak in the dev tools",
+    "expected_type": "note",
+    "expected_time": null,
+    "expected_body": "noticed the memory leak in the dev tools",
+    "expected_rrule": null,
+    "notes": "problem observation"
+  },
+  {
+    "input": "buy groceries",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "buy groceries",
+    "expected_rrule": null,
+    "notes": "simple buy action"
+  },
+  {
+    "input": "send the invoice to the client",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "send the invoice to the client",
+    "expected_rrule": null,
+    "notes": "starts with send"
+  },
+  {
+    "input": "read the documentation",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "'read' not a recognized prefix (read-only, read-write ambiguity); Tier 1 → note"
+  },
+  {
+    "input": "submit the report by EOD",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "submit the report by EOD",
+    "expected_rrule": null,
+    "notes": "submit action"
+  },
+  {
+    "input": "start the project kick-off meeting",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "'start' not a recognized prefix ('start time is 9am' false-positive risk); Tier 1 → note"
+  },
+  {
+    "input": "edit the markdown file",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "'edit' not a recognized prefix ('edit mode' false-positive risk); Tier 1 → note"
+  },
+  {
+    "input": "at 11am review the slides",
+    "expected_type": "reminder",
+    "expected_time": "11:00",
+    "expected_body": "review the slides",
+    "expected_rrule": null,
+    "notes": "time at start with todo action"
+  },
+  {
+    "input": "go to the store at 5pm",
+    "expected_type": "reminder",
+    "expected_time": "17:00",
+    "expected_body": "go to the store",
+    "expected_rrule": null,
+    "notes": "go action with time"
+  },
+  {
+    "input": "walk the dog in 10 minutes",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "walk the dog",
+    "expected_rrule": null,
+    "notes": "relative time with action"
+  },
+  {
+    "input": "every day in the morning drink water",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "drink water",
+    "expected_rrule": "FREQ=DAILY",
+    "notes": "daily with morning time"
+  },
+  {
+    "input": "every other day exercise",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "every other day not parsed"
+  },
+  {
+    "input": "twice a month attend training",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "twice a month not parsed"
+  },
+  {
+    "input": "at 6am go running",
+    "expected_type": "reminder",
+    "expected_time": "06:00",
+    "expected_body": "go running",
+    "expected_rrule": null,
+    "notes": "early morning reminder"
+  },
+  {
+    "input": "at 1am check the server",
+    "expected_type": "reminder",
+    "expected_time": "01:00",
+    "expected_body": "check the server",
+    "expected_rrule": null,
+    "notes": "late night reminder"
+  },
+  {
+    "input": "at 00:30 backup files",
+    "expected_type": "reminder",
+    "expected_time": "00:30",
+    "expected_body": "backup files",
+    "expected_rrule": null,
+    "notes": "midnight time"
+  },
+  {
+    "input": "at 12:01 meeting starts",
+    "expected_type": "reminder",
+    "expected_time": "12:01",
+    "expected_body": "meeting starts",
+    "expected_rrule": null,
+    "notes": "edge case minute value"
+  },
+  {
+    "input": "check the deploy at 15:59",
+    "expected_type": "reminder",
+    "expected_time": "15:59",
+    "expected_body": "check the deploy",
+    "expected_rrule": null,
+    "notes": "end of business hour"
+  },
+  {
+    "input": "every monday at 9:30 daily standup",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "daily standup",
+    "expected_rrule": "BYDAY=MO",
+    "notes": "weekday with specific minutes"
+  },
+  {
+    "input": "every tuesday at 15:15 sync meeting",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "sync meeting",
+    "expected_rrule": "BYDAY=TU",
+    "notes": "another day with minutes"
+  },
+  {
+    "input": "remind me to call john at 8am",
+    "expected_type": "reminder",
+    "expected_time": "08:00",
+    "expected_body": "call john",
+    "expected_rrule": null,
+    "notes": "remind me prefix stripped"
+  },
+  {
+    "input": "make sure to backup at 11pm",
+    "expected_type": "reminder",
+    "expected_time": "23:00",
+    "expected_body": "backup",
+    "expected_rrule": null,
+    "notes": "make sure to prefix"
+  },
+  {
+    "input": "don't forget the meeting at 2pm",
+    "expected_type": "reminder",
+    "expected_time": "14:00",
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "don't forget phrase"
+  },
+  {
+    "input": "next week start the new project",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "'next week' not a recognized time pattern (only 'next <weekday>' is); Tier 1 → note"
+  },
+  {
+    "input": "next month renew the subscription",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "next month not parsed by Tier 1"
+  },
+  {
+    "input": "this week finish the report",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "this week not parsed by Tier 1"
+  },
+  {
+    "input": "tonight at 9pm movie night",
+    "expected_type": "reminder",
+    "expected_time": "21:00",
+    "expected_body": "movie",
+    "expected_rrule": null,
+    "notes": "at 9pm fires first; morning_evening cleanup strips both 'tonight' and standalone 'night' → body becomes just 'movie'"
+  },
+  {
+    "input": "idea: add dark theme",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "idea: prefix minimal"
+  },
+  {
+    "input": "idea: fix the layout bug",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "idea: prefix with fix"
+  },
+  {
+    "input": "could we add a download button",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": "could we add a download button",
+    "expected_rrule": null,
+    "notes": "could we phrase"
+  },
+  {
+    "input": "should we use WebSockets instead",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": "should we use WebSockets instead",
+    "expected_rrule": null,
+    "notes": "should we idea"
+  },
+  {
+    "input": "what if we added analytics",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": "what if we added analytics",
+    "expected_rrule": null,
+    "notes": "what if idea with verb"
+  },
+  {
+    "input": "maybe implement logging",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": "maybe implement logging",
+    "expected_rrule": null,
+    "notes": "maybe idea"
+  },
+  {
+    "input": "why can't we use this library",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": "why can't we use this library",
+    "expected_rrule": null,
+    "notes": "why with contraction"
+  },
+  {
+    "input": "how would we scale this",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": "how would we scale this",
+    "expected_rrule": null,
+    "notes": "how question variant"
+  },
+  {
+    "input": "when is the deadline",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": "when is the deadline",
+    "expected_rrule": null,
+    "notes": "when question"
+  },
+  {
+    "input": "where should we deploy this",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": "where should we deploy this",
+    "expected_rrule": null,
+    "notes": "where question"
+  },
+  {
+    "input": "who is the project owner",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": "who is the project owner",
+    "expected_rrule": null,
+    "notes": "who question"
+  },
+  {
+    "input": "is it backward compatible",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": "is it backward compatible",
+    "expected_rrule": null,
+    "notes": "is question ending with ?"
+  },
+  {
+    "input": "does the site perform well on mobile",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "does question ending with ?"
+  },
+  {
+    "input": "have you tried restarting the server",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "'have' not a recognized question prefix ('have some coffee' false-positive risk); Tier 1 → note"
+  },
+  {
+    "input": "going to be late to the meeting",
+    "expected_type": "note",
+    "expected_time": null,
+    "expected_body": "going to be late to the meeting",
+    "expected_rrule": null,
+    "notes": "casual note observation"
+  },
+  {
+    "input": "the API response time is slow today",
+    "expected_type": "note",
+    "expected_time": null,
+    "expected_body": "the API response time is slow today",
+    "expected_rrule": null,
+    "notes": "performance observation"
+  },
+  {
+    "input": "someone broke the tests yesterday",
+    "expected_type": "note",
+    "expected_time": null,
+    "expected_body": "someone broke the tests yesterday",
+    "expected_rrule": null,
+    "notes": "incident note"
+  },
+  {
+    "input": "the client liked the new design",
+    "expected_type": "note",
+    "expected_time": null,
+    "expected_body": "the client liked the new design",
+    "expected_rrule": null,
+    "notes": "feedback note"
+  },
+  {
+    "input": "found a typo in the documentation",
+    "expected_type": "note",
+    "expected_time": null,
+    "expected_body": "found a typo in the documentation",
+    "expected_rrule": null,
+    "notes": "issue discovery note"
+  },
+  {
+    "input": "waiting for the deploy to finish",
+    "expected_type": "note",
+    "expected_time": null,
+    "expected_body": "waiting for the deploy to finish",
+    "expected_rrule": null,
+    "notes": "status note"
+  },
+  {
+    "input": "coffee maker is broken again",
+    "expected_type": "note",
+    "expected_time": null,
+    "expected_body": "coffee maker is broken again",
+    "expected_rrule": null,
+    "notes": "office note"
+  },
+  {
+    "input": "remember to backup the database",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "remember not a recognized prefix; Tier 1 returns note"
+  },
+  {
+    "input": "dont forget to update the changelog",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "don't forget not recognized; Tier 1 returns note"
+  },
+  {
+    "input": "need to review the design specs",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "need to not recognized; Tier 1 returns note"
+  },
+  {
+    "input": "have to attend the conference",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "have to not recognized; Tier 1 returns note"
+  },
+  {
+    "input": "must apply the security patch",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "must not recognized; Tier 1 returns note"
+  },
+  {
+    "input": "should sign the contract",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "should alone not recognized (not should we); Tier 1 returns note"
+  },
+  {
+    "input": "at 7:00 am wake up early",
+    "expected_type": "reminder",
+    "expected_time": "07:00",
+    "expected_body": "wake up early",
+    "expected_rrule": null,
+    "notes": "time with am"
+  },
+  {
+    "input": "at 8:00 pm watch the show",
+    "expected_type": "reminder",
+    "expected_time": "20:00",
+    "expected_body": "watch the show",
+    "expected_rrule": null,
+    "notes": "time with pm"
+  },
+  {
+    "input": "call the doctor in 1 hour",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "call the doctor",
+    "expected_rrule": null,
+    "notes": "in X hour variant"
+  },
+  {
+    "input": "finish work in 30 minutes please",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "finish work",
+    "expected_rrule": null,
+    "notes": "in X minutes with please"
+  },
+  {
+    "input": "every friday morning team huddle",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "team huddle",
+    "expected_rrule": "BYDAY=FR",
+    "notes": "friday + morning"
+  },
+  {
+    "input": "every monday evening standdown",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "standdown",
+    "expected_rrule": "BYDAY=MO",
+    "notes": "monday + evening (should work)"
+  },
+  {
+    "input": "every sunday at 10am brunch",
+    "expected_type": "reminder",
+    "expected_time": null,
+    "expected_body": "brunch",
+    "expected_rrule": "BYDAY=SU",
+    "notes": "sunday + time"
+  },
+  {
+    "input": "what could possibly go wrong with this approach?",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "what with could in sentence triggers idea pattern"
+  },
+  {
+    "input": "isn't this implementation simpler?",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": "isn't this implementation simpler?",
+    "expected_rrule": null,
+    "notes": "isn't contraction question"
+  },
+  {
+    "input": "won't this break the API?",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": "won't this break the API?",
+    "expected_rrule": null,
+    "notes": "won't contraction question"
+  },
+  {
+    "input": "shouldn't we test this first?",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": "shouldn't we test this first?",
+    "expected_rrule": null,
+    "notes": "shouldn't contraction question"
+  },
+  {
+    "input": "maybe the caching will help performance",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": "maybe the caching will help performance",
+    "expected_rrule": null,
+    "notes": "maybe with will"
+  },
+  {
+    "input": "what if we added a webhook system",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": "what if we added a webhook system",
+    "expected_rrule": null,
+    "notes": "what if with system"
+  },
+  {
+    "input": "could we make this configurable",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": "could we make this configurable",
+    "expected_rrule": null,
+    "notes": "could we variant"
+  },
+  {
+    "input": "should consider adding rate limiting",
+    "expected_type": null,
+    "expected_time": null,
+    "expected_body": null,
+    "expected_rrule": null,
+    "notes": "should consider not recognized; Tier 1 returns note"
+  },
+  {
+    "input": "maybe add a retry mechanism",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": "maybe add a retry mechanism",
+    "expected_rrule": null,
+    "notes": "maybe add phrase"
+  },
+  {
+    "input": "could try using gRPC instead",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": "could try using gRPC instead",
+    "expected_rrule": null,
+    "notes": "could try phrase"
+  },
+  {
+    "input": "why not use message queues",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": "why not use message queues",
+    "expected_rrule": null,
+    "notes": "why not question"
+  },
+  {
+    "input": "how about we use environment variables",
+    "expected_type": "question",
+    "expected_time": null,
+    "expected_body": "how about we use environment variables",
+    "expected_rrule": null,
+    "notes": "how about question"
   }
 ]
