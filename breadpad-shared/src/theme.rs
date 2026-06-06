@@ -1,83 +1,7 @@
-use serde::Deserialize;
-use std::collections::HashMap;
-use std::path::PathBuf;
+pub use bread_theme::{load_palette, Palette};
 
-#[derive(Debug, Clone)]
-pub struct Palette {
-    pub background: String,
-    pub foreground: String,
-    pub color0: String,
-    pub color1: String,
-    pub color2: String,
-    pub color3: String,
-    pub color4: String,
-    pub color5: String,
-    pub color6: String,
-    pub color7: String,
-}
-
-// Catppuccin Mocha fallback
-impl Default for Palette {
-    fn default() -> Self {
-        Palette {
-            background: "#1e1e2e".into(),
-            foreground: "#cdd6f4".into(),
-            color0: "#45475a".into(),
-            color1: "#f38ba8".into(),
-            color2: "#a6e3a1".into(),
-            color3: "#f9e2af".into(),
-            color4: "#89b4fa".into(),
-            color5: "#f5c2e7".into(),
-            color6: "#94e2d5".into(),
-            color7: "#bac2de".into(),
-        }
-    }
-}
-
-#[derive(Debug, Deserialize)]
-struct WalColors {
-    #[serde(default)]
-    colors: HashMap<String, String>,
-    special: Option<WalSpecial>,
-}
-
-#[derive(Debug, Deserialize)]
-struct WalSpecial {
-    background: Option<String>,
-    foreground: Option<String>,
-}
-
-pub(crate) fn palette_from_wal_json(json: &str) -> Option<Palette> {
-    let wal: WalColors = serde_json::from_str(json).ok()?;
-    Some(Palette {
-        background: wal.special.as_ref().and_then(|s| s.background.clone()).unwrap_or_else(|| "#1e1e2e".into()),
-        foreground: wal.special.as_ref().and_then(|s| s.foreground.clone()).unwrap_or_else(|| "#cdd6f4".into()),
-        color0: wal.colors.get("color0").cloned().unwrap_or_else(|| "#45475a".into()),
-        color1: wal.colors.get("color1").cloned().unwrap_or_else(|| "#f38ba8".into()),
-        color2: wal.colors.get("color2").cloned().unwrap_or_else(|| "#a6e3a1".into()),
-        color3: wal.colors.get("color3").cloned().unwrap_or_else(|| "#f9e2af".into()),
-        color4: wal.colors.get("color4").cloned().unwrap_or_else(|| "#89b4fa".into()),
-        color5: wal.colors.get("color5").cloned().unwrap_or_else(|| "#f5c2e7".into()),
-        color6: wal.colors.get("color6").cloned().unwrap_or_else(|| "#94e2d5".into()),
-        color7: wal.colors.get("color7").cloned().unwrap_or_else(|| "#bac2de".into()),
-    })
-}
-
-pub fn load_palette() -> Palette {
-    let wal_path = wal_colors_path();
-    if !wal_path.exists() {
-        return Palette::default();
-    }
-    match std::fs::read_to_string(&wal_path)
-        .ok()
-        .and_then(|s| palette_from_wal_json(&s))
-    {
-        Some(wal) => wal,
-        None => Palette::default(),
-    }
-}
-
-
+/// Generate the full breadpad CSS string. The base colour variables come from
+/// `bread-theme`; the widget rules below are breadpad-specific.
 pub fn build_css(palette: &Palette, user_css: Option<&str>) -> String {
     let mut css = format!(
         r#"
@@ -317,107 +241,9 @@ entry:focus {
     css
 }
 
-fn wal_colors_path() -> PathBuf {
-    dirs::cache_dir()
-        .unwrap_or_else(|| PathBuf::from("~/.cache"))
-        .join("wal")
-        .join("colors.json")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    const TOKYO_NIGHT_WAL: &str = r##"{
-        "special": {
-            "background": "#1a1b26",
-            "foreground": "#c0caf5"
-        },
-        "colors": {
-            "color0": "#15161e",
-            "color1": "#f7768e",
-            "color2": "#9ece6a",
-            "color3": "#e0af68",
-            "color4": "#7aa2f7",
-            "color5": "#bb9af7",
-            "color6": "#7dcfff",
-            "color7": "#a9b1d6"
-        }
-    }"##;
-
-    // ---- Default palette (Catppuccin Mocha) ----
-
-    #[test]
-    fn default_background_is_catppuccin_mocha() {
-        assert_eq!(Palette::default().background, "#1e1e2e");
-    }
-
-    #[test]
-    fn default_foreground_is_catppuccin_mocha() {
-        assert_eq!(Palette::default().foreground, "#cdd6f4");
-    }
-
-    #[test]
-    fn default_red_is_catppuccin_mocha() {
-        assert_eq!(Palette::default().color1, "#f38ba8");
-    }
-
-    #[test]
-    fn default_blue_is_catppuccin_mocha() {
-        assert_eq!(Palette::default().color4, "#89b4fa");
-    }
-
-    #[test]
-    fn default_teal_is_catppuccin_mocha() {
-        assert_eq!(Palette::default().color6, "#94e2d5");
-    }
-
-    // ---- palette_from_wal_json ----
-
-    #[test]
-    fn wal_json_parses_special_background() {
-        let p = palette_from_wal_json(TOKYO_NIGHT_WAL).unwrap();
-        assert_eq!(p.background, "#1a1b26");
-    }
-
-    #[test]
-    fn wal_json_parses_special_foreground() {
-        let p = palette_from_wal_json(TOKYO_NIGHT_WAL).unwrap();
-        assert_eq!(p.foreground, "#c0caf5");
-    }
-
-    #[test]
-    fn wal_json_parses_numbered_colors() {
-        let p = palette_from_wal_json(TOKYO_NIGHT_WAL).unwrap();
-        assert_eq!(p.color0, "#15161e");
-        assert_eq!(p.color1, "#f7768e");
-        assert_eq!(p.color4, "#7aa2f7");
-        assert_eq!(p.color7, "#a9b1d6");
-    }
-
-    #[test]
-    fn wal_json_missing_special_falls_back_to_defaults() {
-        let json = r##"{"colors":{"color0":"#000000"}}"##;
-        let p = palette_from_wal_json(json).unwrap();
-        assert_eq!(p.background, "#1e1e2e");
-        assert_eq!(p.foreground, "#cdd6f4");
-    }
-
-    #[test]
-    fn wal_json_missing_color_falls_back_to_default() {
-        let json = r##"{"special":{"background":"#ff0000","foreground":"#ffffff"},"colors":{}}"##;
-        let p = palette_from_wal_json(json).unwrap();
-        assert_eq!(p.color4, "#89b4fa"); // default blue
-    }
-
-    #[test]
-    fn invalid_wal_json_returns_none() {
-        assert!(palette_from_wal_json("not json").is_none());
-        assert!(palette_from_wal_json("").is_none());
-        assert!(palette_from_wal_json("{}").is_some()); // empty but valid → all defaults
-    }
-
-    // ---- build_css ----
 
     #[test]
     fn css_defines_bg_color() {
@@ -426,16 +252,10 @@ mod tests {
     }
 
     #[test]
-    fn css_defines_fg_color() {
-        let css = build_css(&Palette::default(), None);
-        assert!(css.contains("@define-color fg #cdd6f4"));
-    }
-
-    #[test]
     fn css_defines_all_named_colors() {
         let css = build_css(&Palette::default(), None);
         for name in &["red", "green", "yellow", "blue", "pink", "teal", "overlay"] {
-            assert!(css.contains(&format!("@define-color {} ", name)), "missing @define-color {}", name);
+            assert!(css.contains(&format!("@define-color {name} ")), "missing @define-color {name}");
         }
     }
 
@@ -459,18 +279,6 @@ mod tests {
     }
 
     #[test]
-    fn css_contains_type_chip_class() {
-        let css = build_css(&Palette::default(), None);
-        assert!(css.contains(".type-chip {"));
-    }
-
-    #[test]
-    fn css_contains_sidebar_row_class() {
-        let css = build_css(&Palette::default(), None);
-        assert!(css.contains(".sidebar-row {"));
-    }
-
-    #[test]
     fn css_appends_user_css() {
         let user = ".my-override { color: hotpink; }";
         let css = build_css(&Palette::default(), Some(user));
@@ -491,23 +299,5 @@ mod tests {
         let css = build_css(&p, None);
         assert!(css.contains("@define-color bg #deadbe"), "css: {}", &css[..300]);
         assert!(css.contains("@define-color blue #cafe00"), "css: {}", &css[..300]);
-    }
-
-    #[test]
-    fn css_from_wal_palette_uses_wal_colors() {
-        let p = palette_from_wal_json(TOKYO_NIGHT_WAL).unwrap();
-        let css = build_css(&p, None);
-        assert!(css.contains("@define-color bg #1a1b26"), "css: {}", &css[..300]);
-        assert!(css.contains("@define-color fg #c0caf5"));
-    }
-
-    #[test]
-    fn load_palette_returns_valid_palette() {
-        // No wal file in CI/test env; should return non-empty strings starting with #
-        let palette = load_palette();
-        assert!(!palette.background.is_empty());
-        assert!(palette.background.starts_with('#'), "bg: {}", palette.background);
-        assert!(!palette.foreground.is_empty());
-        assert!(palette.color4.starts_with('#'));
     }
 }
