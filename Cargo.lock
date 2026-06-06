@@ -303,6 +303,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bread-theme"
+version = "0.1.0"
+dependencies = [
+ "dirs 5.0.1",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "breadman"
 version = "0.1.0"
 dependencies = [
@@ -343,6 +352,7 @@ name = "breadpad-shared"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bread-theme",
  "chrono",
  "dirs 5.0.1",
  "ical",

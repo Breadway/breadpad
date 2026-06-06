@@ -1,0 +1,14 @@
+name = "breadpad"
+description = "Quick-capture scratchpad and note viewer with AI classification"
+binaries = ["breadpad", "breadman"]
+system_deps = ["gtk4", "gtk4-layer-shell"]
+bread_deps = []
+
+[config]
+dir = "~/.config/breadpad"
+example = "breadpad.example.toml"
+
+[install]
+post_install = [
+    "mkdir -p ~/.local/share/breadpad/model",
+]
