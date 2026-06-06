@@ -12,6 +12,7 @@ path = "src/main.rs"
 [dependencies]
 breadpad-shared = { path = "../breadpad-shared" }
 anyhow.workspace = true
+ort.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 serde.workspace = true

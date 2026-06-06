@@ -72,7 +72,9 @@ pub struct Note {
     pub done: bool,
     pub workspace: Option<String>,
     pub created: DateTime<Utc>,
+    #[serde(default)]
     pub snoozed_until: Option<DateTime<Utc>>,
+    #[serde(default)]
     pub completed: Option<DateTime<Utc>>,
     #[serde(default)]
     pub tags: Vec<String>,
@@ -83,10 +85,14 @@ pub struct Note {
 impl Note {
     pub fn new(body: String, note_type: NoteType, workspace: Option<String>) -> Self {
         Note {
+            // 12 hex chars (~48 bits) keeps IDs short and human-typable while making
+            // collisions vanishingly unlikely — important because update/delete/get_by_id
+            // all match notes purely by this id.
             id: uuid::Uuid::new_v4()
+                .simple()
                 .to_string()
                 .chars()
-                .take(6)
+                .take(12)
                 .collect(),
             body,
             note_type,
@@ -250,10 +256,15 @@ mod tests {
     }
 
     #[test]
-    fn note_id_is_six_chars() {
+    fn note_id_is_twelve_chars() {
         for _ in 0..50 {
             let note = Note::new("x".into(), NoteType::Note, None);
-            assert_eq!(note.id.len(), 6, "id '{}' is not 6 chars", note.id);
+            assert_eq!(note.id.len(), 12, "id '{}' is not 12 chars", note.id);
+            assert!(
+                note.id.chars().all(|c| c.is_ascii_hexdigit()),
+                "id '{}' is not all hex",
+                note.id
+            );
         }
     }
 

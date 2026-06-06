@@ -79,14 +79,11 @@ pub fn build(cfg: &Config, on_save: impl Fn(Config) + 'static) -> gtk4::Scrolled
         .build();
     attach_row(&model_grid, 1, "Tokenizer path", &tokenizer_entry);
 
-    let ep_options = ["auto", "npu", "vulkan", "cpu"];
-    let ep_combo = gtk4::DropDown::from_strings(&ep_options);
-    let ep_idx = ep_options
-        .iter()
-        .position(|&s| s == cfg.model.execution_provider.as_str())
-        .unwrap_or(0) as u32;
-    ep_combo.set_selected(ep_idx);
-    attach_row(&model_grid, 2, "Execution provider", &ep_combo);
+    let ort_dylib_entry = gtk4::Entry::builder()
+        .text(&cfg.model.ort_dylib_path)
+        .hexpand(true)
+        .build();
+    attach_row(&model_grid, 2, "ORT dylib path", &ort_dylib_entry);
 
     outer.append(&model_frame);
 
@@ -168,7 +165,7 @@ pub fn build(cfg: &Config, on_save: impl Fn(Config) + 'static) -> gtk4::Scrolled
         let grs = grace_spin.clone();
         let mpe = model_path_entry.clone();
         let tke = tokenizer_entry.clone();
-        let epc = ep_combo.clone();
+        let ode = ort_dylib_entry.clone();
         let oec = ollama_enabled.clone();
         let oee = ollama_endpoint.clone();
         let ome = ollama_model.clone();
@@ -203,11 +200,7 @@ pub fn build(cfg: &Config, on_save: impl Fn(Config) + 'static) -> gtk4::Scrolled
                 model: ModelConfig {
                     path: mpe.text().to_string(),
                     tokenizer: tke.text().to_string(),
-                    execution_provider: ep_options
-                        .get(epc.selected() as usize)
-                        .copied()
-                        .unwrap_or("auto")
-                        .to_string(),
+                    ort_dylib_path: ode.text().to_string(),
                     ollama: OllamaConfig {
                         enabled: oec.is_active(),
                         endpoint: oee.text().to_string(),

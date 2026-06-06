@@ -67,7 +67,7 @@ User-defined tags can be added freely on top of the built-in types.
 - Inline editing — click any card to edit body, type, time, or recurrence
 - Mark todo/reminder as done; done items move to an archive accessible via a toggle
 - Search across all notes (full-text, instant)
-- Sort by: newest, oldest, due time
+- Sort: newest first (default)
 
 ### Theming
 
@@ -83,8 +83,8 @@ User-defined tags can be added freely on top of the built-in types.
 Notes are stored as JSONL at `~/.local/share/breadpad/notes.jsonl` — one JSON object per line, human-readable, easy to back up or script against.
 
 ```jsonl
-{"id":"a1b2c3","body":"Pack calculator in bag","type":"reminder","time":"2026-05-25T19:00:00","rrule":null,"done":false,"workspace":"1","created":"2026-05-25T18:45:00","snoozed_until":null}
-{"id":"d4e5f6","body":"Look into relm4 reactive patterns","type":"idea","time":null,"rrule":null,"done":false,"workspace":"2","created":"2026-05-25T14:10:00","snoozed_until":null}
+{"id":"a1b2c3","body":"Pack calculator in bag","type":"reminder","time":"2026-05-25T19:00:00Z","rrule":null,"done":false,"workspace":"1","created":"2026-05-25T18:45:00Z","snoozed_until":null,"completed":null,"tags":[],"caldav_uid":null}
+{"id":"d4e5f6","body":"Look into relm4 reactive patterns","type":"idea","time":null,"rrule":null,"done":false,"workspace":"2","created":"2026-05-25T14:10:00Z","snoozed_until":null,"completed":null,"tags":[],"caldav_uid":null}
 ```
 
 Completed notes are never deleted — they gain `"done": true` and a `"completed"` timestamp. A separate `~/.local/share/breadpad/archive.jsonl` is written periodically for notes older than 30 days.
@@ -108,13 +108,7 @@ Returns a calibrated confidence. If ≥ 0.82, Tiers 2 and 3 are skipped.
 
 Runs when Tier 1 confidence is below threshold. Responsible for **type classification only** — Tier 1's extracted time, recurrence rule, and cleaned body are always preserved.
 
-Invoked via `ort` (ONNX Runtime Rust bindings). Execution provider order:
-
-1. **QNN (Qualcomm/AMD XDNA NPU)** — requires `libQnnHtp.so` from the AMD Ryzen AI software stack
-2. **Vulkan** — iGPU via the ONNX Runtime Vulkan EP
-3. **CPU** — always available fallback
-
-Active provider shown in `breadpad --status`.
+Invoked via `ort` (ONNX Runtime Rust bindings, `load-dynamic`) on the CPU. Requires an external `libonnxruntime.so`; set `model.ort_dylib_path` in `breadpad.toml` or let breadpad auto-discover it via `ORT_DYLIB_PATH`.
 
 #### Tier 3 — Large local model via Ollama
 
@@ -129,11 +123,10 @@ If Ollama is unreachable or returns an invalid response, breadpad logs a warning
 ~/.local/share/breadpad/model/tokenizer.json
 ```
 
-breadpad ships without a bundled model. Run `breadpad download-model` to fetch a recommended quantised model, or drop your own ONNX model in the above path.
+breadpad ships without a bundled model. Drop a compatible ONNX classifier and `tokenizer.json` at those paths, then configure `model.ort_dylib_path` to point at your ONNX Runtime library.
 
 ```bash
-breadpad download-model   # fetches default model (~150 MB)
-breadpad model-info       # shows active EP, model path, last inference time
+breadpad model-info   # shows active EP and model path
 ```
 
 ---
@@ -144,9 +137,8 @@ breadpad model-info       # shows active EP, model path, last inference time
 - GTK4 (≥ 4.12) + `gtk4-layer-shell`
 - D-Bus session bus (for notifications)
 - systemd user session (for timer-backed reminders)
-- Rust 1.77+
-- ONNX Runtime (`ort` crate pulls this in automatically via the `download-binaries` feature)
-- **NPU path only:** AMD Ryzen AI software stack (`amdxdna` kernel driver ≥ 6.11, QNN EP shared libs)
+- Rust 1.80+
+- **Tier 2 (ONNX classifier):** An external `libonnxruntime.so`. Set `model.ort_dylib_path` in `breadpad.toml`, or set `ORT_DYLIB_PATH` in your environment. Without a library, Tier 2 is disabled; Tier 1 + 3 still work.
 - **Tier 3 only (optional):** [Ollama](https://ollama.com) running locally with your chosen model pulled (`ollama pull llama3.2:3b`). Tier 3 is silently skipped if Ollama is not running.
 
 ---
@@ -160,8 +152,9 @@ cargo build --release
 cp target/release/breadpad ~/.local/bin/
 cp target/release/breadman ~/.local/bin/
 
-# Fetch the default classifier model
-breadpad download-model
+# Place your ONNX classifier and tokenizer in the model directory
+mkdir -p ~/.local/share/breadpad/model
+# Then set model.ort_dylib_path in breadpad.toml to your libonnxruntime.so
 ```
 
 On Arch Linux, install GTK4 dependencies first:
@@ -186,7 +179,7 @@ archive_after_days = 30
 [model]
 path = "~/.local/share/breadpad/model/classifier.onnx"
 tokenizer = "~/.local/share/breadpad/model/tokenizer.json"
-execution_provider = "auto"    # auto | npu | vulkan | cpu
+ort_dylib_path = ""              # optional: explicit path to libonnxruntime.so; auto-discovered when empty
 
 [model.ollama]
 endpoint = "http://localhost:11434"

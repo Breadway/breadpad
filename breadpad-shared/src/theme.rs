@@ -91,19 +91,23 @@ pub fn build_css(palette: &Palette, user_css: Option<&str>) -> String {
 @define-color teal {c6};
 @define-color overlay {c0};
 
+* {{
+    font-family: 'Varela Round', sans-serif;
+}}
+
 window {{
     background-color: @bg;
     color: @fg;
-    border-radius: 12px;
+    border-radius: 8px;
 }}
 
 .popup-entry {{
     background: @bg;
     color: @fg;
     border: 2px solid @blue;
-    border-radius: 8px;
+    border-radius: 6px;
     padding: 12px 16px;
-    font-size: 16px;
+    font-size: 14px;
     caret-color: @fg;
 }}
 
@@ -116,9 +120,9 @@ window {{
     background: @overlay;
     color: @fg;
     border-radius: 999px;
-    padding: 2px 10px;
+    padding: 4px 12px;
     font-size: 12px;
-    margin: 2px;
+    margin: 4px;
 }}
 
 .type-chip.active {{
@@ -127,7 +131,7 @@ window {{
 }}
 
 .confirm-button {{
-    background: @green;
+    background: @blue;
     color: @bg;
     border: none;
     border-radius: 8px;
@@ -139,7 +143,7 @@ window {{
     background: shade(@bg, 1.1);
     border-radius: 8px;
     padding: 12px;
-    margin: 4px 8px;
+    margin: 8px;
     border-left: 3px solid @blue;
 }}
 
@@ -151,9 +155,13 @@ window {{
     background: shade(@bg, 1.1);
     color: @fg;
     border: 1px solid @overlay;
-    border-radius: 8px;
+    border-radius: 6px;
     padding: 8px 12px;
-    margin: 8px;
+}}
+
+.search-entry:focus {{
+    border-color: @blue;
+    outline: none;
 }}
 "#,
         bg = palette.background,
@@ -178,25 +186,27 @@ window {{
 }
 
 .sidebar-row {
-    padding: 6px 12px;
+    padding: 8px 12px;
     font-size: 14px;
+    transition: background 100ms ease;
 }
 
 .sidebar-row:hover:not(:selected) {
-    background: shade(@bg, 1.08);
+    background: shade(@bg, 1.1);
 }
 
 .sidebar-row:selected {
     background: @blue;
     color: @bg;
+    font-weight: 500;
 }
 
 .sidebar-section-label {
-    color: alpha(@fg, 0.4);
-    font-size: 10px;
-    font-weight: bold;
-    padding: 10px 14px 2px 14px;
-    letter-spacing: 1px;
+    color: alpha(@fg, 0.5);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 12px 12px 8px 12px;
+    letter-spacing: 0.5px;
 }
 
 .action-btn {
@@ -227,6 +237,62 @@ window {{
 .note-card-idea      { border-left-color: @pink;   }
 .note-card-question  { border-left-color: @teal;   }
 .note-card-note      { border-left-color: @blue;   }
+
+.reminder-window {
+    background: @bg;
+    border: 1px solid @overlay;
+    border-radius: 8px;
+}
+
+.reminder-emoji { font-size: 20px; }
+
+.reminder-title {
+    font-size: 12px;
+    font-weight: bold;
+    color: alpha(@fg, 0.6);
+    letter-spacing: 0.5px;
+}
+
+.reminder-time {
+    font-size: 12px;
+    color: alpha(@fg, 0.5);
+}
+
+.reminder-body {
+    font-size: 18px;
+    font-weight: bold;
+    color: @fg;
+}
+
+.reminder-dismiss {
+    background: transparent;
+    border: 1px solid @overlay;
+    border-radius: 8px;
+    padding: 8px 16px;
+    color: alpha(@fg, 0.6);
+}
+
+.reminder-dismiss:hover { background: shade(@bg, 1.1); }
+
+.reminder-snooze {
+    background: transparent;
+    border: 1px solid @overlay;
+    border-radius: 8px;
+    padding: 8px 16px;
+    color: @fg;
+}
+
+.reminder-snooze:hover { background: shade(@bg, 1.1); }
+
+.snooze-option {
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 12px;
+    color: @fg;
+}
+
+.snooze-option:hover { background: shade(@bg, 1.2); }
 
 entry {
     background: shade(@bg, 1.1);

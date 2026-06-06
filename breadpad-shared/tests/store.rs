@@ -302,6 +302,51 @@ fn rotate_archive_zero_when_nothing_qualifies() {
 }
 
 #[test]
+fn rotate_archive_note_just_inside_boundary_stays() {
+    let (_dir, store) = mk();
+    // 29 days ago — threshold is 30 — should NOT be archived
+    let mut n = note("fresh enough", NoteType::Todo);
+    n.done = true;
+    n.completed = Some(Utc::now() - Duration::days(29));
+    store.save_note(&n).unwrap();
+
+    assert_eq!(store.rotate_archive(30).unwrap(), 0);
+    assert_eq!(store.load_all().unwrap().len(), 1);
+}
+
+#[test]
+fn rotate_archive_note_just_past_boundary_is_archived() {
+    let (_dir, store) = mk();
+    // 31 days ago — threshold is 30 — should be archived
+    let mut n = note("old enough", NoteType::Todo);
+    n.done = true;
+    n.completed = Some(Utc::now() - Duration::days(31));
+    store.save_note(&n).unwrap();
+
+    assert_eq!(store.rotate_archive(30).unwrap(), 1);
+    assert!(store.load_all().unwrap().is_empty());
+    assert_eq!(store.load_archive().unwrap().len(), 1);
+}
+
+#[test]
+fn rotate_archive_zero_day_threshold_archives_completed_notes() {
+    let (_dir, store) = mk();
+    let mut done = note("done a second ago", NoteType::Todo);
+    done.done = true;
+    done.completed = Some(Utc::now() - Duration::seconds(1));
+    store.save_note(&done).unwrap();
+
+    let undone = note("still active", NoteType::Todo);
+    store.save_note(&undone).unwrap();
+
+    assert_eq!(store.rotate_archive(0).unwrap(), 1);
+    let remaining = store.load_all().unwrap();
+    assert_eq!(remaining.len(), 1);
+    assert_eq!(remaining[0].body, "still active");
+    assert_eq!(store.load_archive().unwrap().len(), 1);
+}
+
+#[test]
 fn rotate_archive_ignores_undone_notes_no_matter_how_old() {
     let (_dir, store) = mk();
     let mut n = note("old but undone", NoteType::Todo);

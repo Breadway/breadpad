@@ -1,1 +1,29 @@
 target/
+*.tgz
+*.zip
+breadpadcli
+breadmancli
+svgs.txt
+
+# Editor & IDE
+*.swp
+*.swo
+.DS_Store
+.vscode/
+.idea/
+*.iml
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Debug & Logs
+*.log
+*.pid
+*.sock
+*.pdb
+
+# Rust/Cargo
+Cargo.lock
+dist/

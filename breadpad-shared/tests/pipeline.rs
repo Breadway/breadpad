@@ -14,7 +14,7 @@ use tempfile::TempDir;
 // Mirrors commit_note() in breadpad/src/main.rs.
 // `user_type` is the type the user selected in the chip row (default = NoteType::Note).
 fn capture(store: &Store, text: &str, user_type: NoteType) -> Note {
-    let mut classifier = Classifier::load("auto", "08:00");
+    let mut classifier = Classifier::load("08:00");
     let result = classifier.classify(text);
 
     let mut note = Note::new(text.into(), user_type.clone(), None);

@@ -7,8 +7,25 @@ archive_after_days = 30
 [model]
 path = "~/.local/share/breadpad/model/classifier.onnx"
 tokenizer = "~/.local/share/breadpad/model/tokenizer.json"
-execution_provider = "auto"    # auto | npu | vulkan | cpu
+# ort_dylib_path: path to libonnxruntime.so. Leave empty to auto-discover from
+# standard system paths or $ORT_DYLIB_PATH. Tier 2 is disabled if no library is found.
+ort_dylib_path = ""
+
+[model.ollama]
+endpoint = "http://localhost:11434"
+model = "fastflowlm"
+confidence_threshold = 0.6
+enabled = true
 
 [reminders]
 default_morning = "08:00"
 missed_grace_minutes = 60
+
+[calendar]
+enabled = false
+url = ""          # e.g. https://cloud.example.com/remote.php/dav/calendars/user/personal/
+username = ""
+# WARNING: password is stored in plaintext. Restrict file permissions:
+#   chmod 600 ~/.config/breadpad/breadpad.toml
+# and keep this file out of version control.
+password = ""
