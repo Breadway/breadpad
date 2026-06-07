@@ -247,12 +247,18 @@ fn try_load_session(
     path: &std::path::Path,
 ) -> (Option<ort::session::Session>, ExecutionProvider) {
     // Try ROCm (iGPU) first, fall back to CPU.
-    match build_onnx_session(path, ort::ep::ROCm::default().build()) {
-        Ok(s) => {
-            tracing::info!("ONNX session loaded (ROCm iGPU)");
-            return (Some(s), ExecutionProvider::Gpu);
+    let rocm_available = {
+        use ort::execution_providers::ExecutionProvider as _;
+        ort::ep::ROCm::default().is_available().unwrap_or(false)
+    };
+    if rocm_available {
+        match build_onnx_session(path, ort::ep::ROCm::default().build()) {
+            Ok(s) => {
+                tracing::info!("ONNX session loaded (ROCm iGPU)");
+                return (Some(s), ExecutionProvider::Gpu);
+            }
+            Err(e) => tracing::debug!("ROCm EP unavailable: {}; trying CPU", e),
         }
-        Err(e) => tracing::debug!("ROCm EP unavailable: {}; trying CPU", e),
     }
     match build_onnx_session(path, ort::ep::CPU::default().build()) {
         Ok(s) => {
