@@ -1,7 +1,8 @@
 name = "breadpad"
 description = "Quick-capture scratchpad and note viewer with AI classification"
 binaries = ["breadpad", "breadman"]
-system_deps = ["gtk4", "gtk4-layer-shell", "rocm-runtime"]
+system_deps = ["gtk4", "gtk4-layer-shell"]
+optional_system_deps = ["rocm-hip-runtime", "ollama", "hyprland"]
 bread_deps = []
 
 [config]
