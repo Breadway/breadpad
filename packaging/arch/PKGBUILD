@@ -7,6 +7,10 @@ pkgdesc="Quick-capture scratchpad and note viewer with AI classification"
 arch=('x86_64')
 url="https://github.com/Breadway/breadpad"
 license=('MIT')
+# Some Rust deps (ring/mlua) build vendored C/asm into static archives; makepkg's
+# default -flto=auto emits GCC LTO bitcode the Rust (lld) link cannot read,
+# causing undefined-symbol errors. Disable LTO.
+options=(!lto)
 depends=('gtk4' 'gtk4-layer-shell')
 optdepends=(
   'ollama: local AI note classification'
