@@ -1,31 +1,21 @@
 pub use bread_theme::{load_palette, Palette};
 
-/// Generate the full breadpad CSS string. The base colour variables come from
-/// `bread-theme`; the widget rules below are breadpad-specific.
+/// Generate the full breadpad/breadman CSS string. The base — `@define-color`
+/// palette, fonts, and generic widget styling — comes from the shared
+/// `bread_theme::stylesheet`, so breadpad and breadman look identical to the
+/// rest of the ecosystem. Only breadpad-specific component rules are appended.
 pub fn build_css(palette: &Palette, user_css: Option<&str>) -> String {
-    let mut css = format!(
+    // Shared ecosystem base (define-colors incl. accent, font, buttons, entries,
+    // switches, lists, cards, scrollbars). `overlay` here is color7 — consistent
+    // with every other bread app (breadpad previously mapped it to color0).
+    let mut css = bread_theme::stylesheet(palette);
+
+    css.push_str(
         r#"
-@define-color bg {bg};
-@define-color fg {fg};
-@define-color red {c1};
-@define-color green {c2};
-@define-color yellow {c3};
-@define-color blue {c4};
-@define-color pink {c5};
-@define-color teal {c6};
-@define-color overlay {c0};
+/* breadpad/breadman-specific components */
+window { border-radius: 8px; }
 
-* {{
-    font-family: 'Varela Round', sans-serif;
-}}
-
-window {{
-    background-color: @bg;
-    color: @fg;
-    border-radius: 8px;
-}}
-
-.popup-entry {{
+.popup-entry {
     background: @bg;
     color: @fg;
     border: 2px solid @blue;
@@ -33,80 +23,59 @@ window {{
     padding: 12px 16px;
     font-size: 14px;
     caret-color: @fg;
-}}
+}
 
-.popup-entry:focus {{
+.popup-entry:focus {
     outline: none;
     border-color: @teal;
-}}
+}
 
-.type-chip {{
+.type-chip {
     background: @overlay;
     color: @fg;
     border-radius: 999px;
     padding: 4px 12px;
     font-size: 12px;
     margin: 4px;
-}}
+}
 
-.type-chip.active {{
+.type-chip.active {
     background: @blue;
     color: @bg;
-}}
+}
 
-.confirm-button {{
+.confirm-button {
     background: @blue;
     color: @bg;
     border: none;
     border-radius: 8px;
     padding: 8px 16px;
     font-weight: bold;
-}}
+}
 
-.note-card {{
+.note-card {
     background: shade(@bg, 1.1);
     border-radius: 8px;
     padding: 12px;
     margin: 8px;
     border-left: 3px solid @blue;
-}}
+}
 
-.note-card:hover {{
+.note-card:hover {
     background: shade(@bg, 1.2);
-}}
+}
 
-.search-entry {{
+.search-entry {
     background: shade(@bg, 1.1);
     color: @fg;
     border: 1px solid @overlay;
     border-radius: 6px;
     padding: 8px 12px;
-}}
-
-.search-entry:focus {{
-    border-color: @blue;
-    outline: none;
-}}
-"#,
-        bg = palette.background,
-        fg = palette.foreground,
-        c0 = palette.color0,
-        c1 = palette.color1,
-        c2 = palette.color2,
-        c3 = palette.color3,
-        c4 = palette.color4,
-        c5 = palette.color5,
-        c6 = palette.color6,
-    );
-
-    css.push_str(r#"
-.dim-label {
-    color: alpha(@fg, 0.5);
-    font-size: 12px;
 }
 
-.sidebar {
-    background: shade(@bg, 0.93);
+.search-entry:focus {
+    border-color: @blue;
+    outline: none;
 }
 
 .sidebar-row {
@@ -217,20 +186,6 @@ window {{
 }
 
 .snooze-option:hover { background: shade(@bg, 1.2); }
-
-entry {
-    background: shade(@bg, 1.1);
-    color: @fg;
-    border: 1px solid @overlay;
-    border-radius: 6px;
-    caret-color: @fg;
-    padding: 5px 10px;
-}
-
-entry:focus {
-    border-color: @blue;
-    outline: none;
-}
 "#);
 
     if let Some(extra) = user_css {
