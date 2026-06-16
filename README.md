@@ -190,7 +190,40 @@ enabled = true                 # set false to never call Ollama
 [reminders]
 default_morning = "08:00"      # what "tomorrow morning" resolves to
 missed_grace_minutes = 60      # how long after boot to still fire a missed reminder
+
+[calendar]
+enabled = false                # turn on CalDAV sync (see below)
+url = ""                       # CalDAV calendar collection URL
+username = ""
+password = ""                  # app password / token recommended
 ```
+
+### Calendar sync (CalDAV)
+
+When `[calendar].enabled = true`, reminders and dated notes are pushed to a
+CalDAV calendar as events (tracked by `caldav_uid` on each note), so they show
+up alongside the rest of your calendar.
+
+1. Find your calendar's **collection URL**. It's the per-calendar CalDAV path,
+   not the server root — e.g. Nextcloud:
+   `https://host/remote.php/dav/calendars/<user>/<calendar-id>/`.
+2. Create an **app password** for breadpad (don't use your main password):
+   Nextcloud → Settings → Security → *Devices & sessions* → "Create new app
+   password". Most CalDAV servers have an equivalent.
+3. Fill in `breadpad.toml` (or BOS Settings → breadpad → Calendar):
+
+   ```toml
+   [calendar]
+   enabled  = true
+   url      = "https://host/remote.php/dav/calendars/me/breadpad/"
+   username = "me"
+   password = "xxxx-xxxx-xxxx-xxxx"
+   ```
+4. Restart breadpad. New dated/reminder notes sync up; the `caldav_uid` field
+   links each note to its event so updates and deletes stay in step.
+
+If the server is unreachable, breadpad logs a warning and keeps the note
+locally — sync is best-effort and never blocks capture.
 
 ---
 
