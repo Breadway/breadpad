@@ -304,8 +304,8 @@ dependencies = [
 
 [[package]]
 name = "bread-theme"
-version = "0.1.0"
-source = "git+https://github.com/Breadway/bread-ecosystem?tag=v0.1.0#6b5f4f475f66a645b08cb865e6dda8228d23679b"
+version = "0.2.3"
+source = "git+https://github.com/Breadway/bread-ecosystem?tag=v0.2.6#0c8c5c00e435fedff4f81e36d603424c153519a9"
 dependencies = [
  "dirs 5.0.1",
  "serde",
@@ -314,7 +314,7 @@ dependencies = [
 
 [[package]]
 name = "breadman"
-version = "0.3.1"
+version = "0.3.4"
 dependencies = [
  "anyhow",
  "breadpad-shared",
@@ -331,7 +331,7 @@ dependencies = [
 
 [[package]]
 name = "breadpad"
-version = "0.3.1"
+version = "0.3.4"
 dependencies = [
  "anyhow",
  "breadpad-shared",
@@ -350,7 +350,7 @@ dependencies = [
 
 [[package]]
 name = "breadpad-shared"
-version = "0.3.1"
+version = "0.3.4"
 dependencies = [
  "anyhow",
  "bread-theme",
@@ -376,7 +376,7 @@ dependencies = [
 
 [[package]]
 name = "breadpad-test"
-version = "0.3.1"
+version = "0.3.4"
 dependencies = [
  "anyhow",
  "breadpad-shared",
