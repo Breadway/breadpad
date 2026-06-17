@@ -1,5 +1,18 @@
 pub use bread_theme::{load_palette, Palette};
 
+/// Apply breadpad/breadman's stylesheet and keep it live across palette changes.
+/// [`build_css`] bundles the shared component sheet with the app's own rules from
+/// the current pywal palette; `bread_theme::gtk::apply_app_css` re-runs this
+/// whenever `bread-theme reload` rewrites the shared theme file, so the UI
+/// recolours in place (and re-reads the user's `style.css` override too).
+pub fn apply_live() {
+    bread_theme::gtk::apply_app_css(|| {
+        let palette = load_palette();
+        let user_css = std::fs::read_to_string(crate::config::style_css_path()).ok();
+        build_css(&palette, user_css.as_deref())
+    });
+}
+
 /// Generate the full breadpad/breadman CSS string. The base — `@define-color`
 /// palette, fonts, and generic widget styling — comes from the shared
 /// `bread_theme::stylesheet`, so breadpad and breadman look identical to the
@@ -32,7 +45,7 @@ window { border-radius: 8px; }
 
 .type-chip {
     background: @overlay;
-    color: @fg;
+    color: @on-overlay;
     border-radius: 999px;
     padding: 4px 12px;
     font-size: 12px;
@@ -41,12 +54,12 @@ window { border-radius: 8px; }
 
 .type-chip.active {
     background: @blue;
-    color: @bg;
+    color: @on-accent;
 }
 
 .confirm-button {
     background: @blue;
-    color: @bg;
+    color: @on-accent;
     border: none;
     border-radius: 8px;
     padding: 8px 16px;
@@ -90,7 +103,7 @@ window { border-radius: 8px; }
 
 .sidebar-row:selected {
     background: @blue;
-    color: @bg;
+    color: @on-accent;
     font-weight: 500;
 }
 

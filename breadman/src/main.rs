@@ -4,7 +4,6 @@ use breadpad_shared::{
     parser::parse_rule_based,
     scheduler::Scheduler,
     store::Store,
-    theme::{build_css, load_palette},
     types::{Note, NoteType, RecurrenceRule},
 };
 use chrono::Local;
@@ -924,19 +923,7 @@ fn show_add_note_window(parent: &gtk4::ApplicationWindow, state: AppState) {
 // ── CSS ───────────────────────────────────────────────────────────────────────
 
 fn apply_css(_cfg: &Config) {
-    let palette = load_palette();
-    let user_css = std::fs::read_to_string(breadpad_shared::config::style_css_path()).ok();
-    let css = build_css(&palette, user_css.as_deref());
-
-    let provider = gtk4::CssProvider::new();
-    provider.load_from_string(&css);
-    let Some(display) = gtk4::gdk::Display::default() else {
-        tracing::warn!("no default display; skipping CSS provider");
-        return;
-    };
-    gtk4::style_context_add_provider_for_display(
-        &display,
-        &provider,
-        gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
-    );
+    // Hot-reloads on `bread-theme reload` (recolours to the new pywal palette
+    // and re-reads the user's style.css). See breadpad_shared::theme::apply_live.
+    breadpad_shared::theme::apply_live();
 }
