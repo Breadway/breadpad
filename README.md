@@ -56,7 +56,7 @@ User-defined tags can be added freely on top of the built-in types.
 
 - **One-off reminders** — natural language time ("at 7pm", "in 30 minutes", "tomorrow morning") parsed at classification time; scheduled via a systemd user timer
 - **Recurring reminders** — "every Sunday at 9pm", "every weekday morning" — stored as an iCal-compatible RRULE and re-scheduled on each trigger
-- **Snooze** — notification popup includes snooze actions: 15 min / 1 hour / tomorrow morning / custom; snoozing reschedules the timer without touching the original note
+- **Snooze** — notification popup includes snooze actions drawn from `snooze_options` (default: 15 min / 1 hour / tomorrow morning); snoozing reschedules the timer without touching the original note
 - **Missed reminders** — if the system was off or suspended at the scheduled time, the reminder fires on next login
 
 ### Viewer (`breadman`)
@@ -139,7 +139,7 @@ breadpad model-info   # shows active EP and model path
 - systemd user session (for timer-backed reminders)
 - Rust 1.80+
 - **Tier 2 (ONNX classifier):** An external `libonnxruntime.so`. Set `model.ort_dylib_path` in `breadpad.toml`, or set `ORT_DYLIB_PATH` in your environment. Without a library, Tier 2 is disabled; Tier 1 + 3 still work.
-- **Tier 3 only (optional):** [Ollama](https://ollama.com) running locally with your chosen model pulled (`ollama pull llama3.2:3b`). Tier 3 is silently skipped if Ollama is not running.
+- **Tier 3 only (optional):** [Ollama](https://ollama.com) running locally with your chosen model pulled (e.g. `ollama pull fastflowlm`). Tier 3 is silently skipped if Ollama is not running.
 
 ---
 
@@ -183,7 +183,7 @@ ort_dylib_path = ""              # optional: explicit path to libonnxruntime.so;
 
 [model.ollama]
 endpoint = "http://localhost:11434"
-model = "llama3.2:3b"          # any model you have pulled in Ollama
+model = "fastflowlm"           # any model you have pulled in Ollama
 confidence_threshold = 0.6     # Tier 2 scores below this trigger Tier 3
 enabled = true                 # set false to never call Ollama
 
@@ -243,6 +243,9 @@ breadpad --no-classify
 
 # Show model and storage status
 breadpad --status
+
+# Print expected model paths (does not download automatically)
+breadpad download-model
 ```
 
 Hyprland keybind:
