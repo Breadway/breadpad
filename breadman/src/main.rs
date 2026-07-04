@@ -6,7 +6,7 @@ use breadpad_shared::{
     store::Store,
     types::{Note, NoteType, RecurrenceRule},
 };
-use chrono::Local;
+use chrono::{DateTime, Local, Utc};
 use gtk4::{glib, prelude::*};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -69,10 +69,21 @@ struct AppState {
     errors: Rc<RefCell<Vec<(chrono::DateTime<Local>, String)>>>,
     active_view: Rc<RefCell<String>>,
     stack: gtk4::Stack,
+    /// Sidebar row id ("all", "upcoming", "archive", or a note type name) ->
+    /// its count `Label`, so counts can be refreshed in place after every
+    /// `rebuild_stack` without rebuilding the sidebar itself.
+    sidebar_counts: Rc<RefCell<Vec<(String, gtk4::Label)>>>,
+    status_label: gtk4::Label,
 }
 
 impl AppState {
-    fn new(store: Arc<Store>, notes: Vec<Note>, cfg: Config, stack: gtk4::Stack) -> Self {
+    fn new(
+        store: Arc<Store>,
+        notes: Vec<Note>,
+        cfg: Config,
+        stack: gtk4::Stack,
+        status_label: gtk4::Label,
+    ) -> Self {
         AppState {
             store,
             notes: Rc::new(RefCell::new(notes)),
@@ -80,6 +91,8 @@ impl AppState {
             errors: Rc::new(RefCell::new(Vec::new())),
             active_view: Rc::new(RefCell::new("all".to_string())),
             stack,
+            sidebar_counts: Rc::new(RefCell::new(Vec::new())),
+            status_label,
         }
     }
 
@@ -192,6 +205,40 @@ fn rebuild_stack(state: &AppState) {
     // Errors
     let errors_view = views::errors::build(&errors);
     state.stack.add_named(&errors_view, Some("errors"));
+
+    update_counts_and_status(state);
+}
+
+/// Refreshes the sidebar's per-row counts and the content pane's footer
+/// note count from the current `state.notes`. Cheap enough to call on every
+/// rebuild — five type counts plus all/upcoming/archive over a note list
+/// that in practice stays small.
+fn update_counts_and_status(state: &AppState) {
+    let notes = state.notes.borrow();
+    let total = notes.iter().filter(|n| !n.done).count();
+    state
+        .status_label
+        .set_label(&format!("{total} note{}", if total == 1 { "" } else { "s" }));
+
+    for (key, label) in state.sidebar_counts.borrow().iter() {
+        let n = match key.as_str() {
+            "all" => total,
+            "upcoming" => notes
+                .iter()
+                .filter(|n| {
+                    !n.done
+                        && matches!(n.note_type, NoteType::Reminder | NoteType::Todo)
+                        && n.effective_time().is_some()
+                })
+                .count(),
+            "archive" => notes.iter().filter(|n| n.done).count(),
+            other => {
+                let nt = NoteType::from_str(other);
+                notes.iter().filter(|n| !n.done && n.note_type == nt).count()
+            }
+        };
+        label.set_label(&n.to_string());
+    }
 }
 
 // ── main ─────────────────────────────────────────────────────────────────────
@@ -331,7 +378,12 @@ fn build_app_window(
         ));
         row
     };
-    let make_item = |id: &str, icon: &str, label: &str| {
+    // Returns the row plus its count `Label` when `counted` is set — callers
+    // collect these so counts can be kept live from `AppState.sidebar_counts`
+    // (monochrome geometric icons + a colored dot per type instead of the
+    // old full-color emoji, which always render in fixed colors no matter
+    // what the pywal palette says).
+    let make_item = |id: &str, icon: &str, icon_class: Option<&str>, label: &str, counted: bool| {
         let row = gtk4::ListBoxRow::builder()
             .css_classes(["sidebar-row"])
             .build();
@@ -340,13 +392,15 @@ fn build_app_window(
             .orientation(gtk4::Orientation::Horizontal)
             .spacing(10)
             .build();
-        hbox.append(
-            &gtk4::Label::builder()
-                .label(icon)
-                .width_chars(2)
-                .xalign(0.5)
-                .build(),
-        );
+        let icon_label = gtk4::Label::builder()
+            .label(icon)
+            .width_chars(2)
+            .xalign(0.5)
+            .build();
+        if let Some(class) = icon_class {
+            icon_label.add_css_class(class);
+        }
+        hbox.append(&icon_label);
         hbox.append(
             &gtk4::Label::builder()
                 .label(label)
@@ -354,23 +408,62 @@ fn build_app_window(
                 .hexpand(true)
                 .build(),
         );
+        let count_label = if counted {
+            let l = gtk4::Label::builder()
+                .label("")
+                .css_classes(["sidebar-count"])
+                .build();
+            hbox.append(&l);
+            Some(l)
+        } else {
+            None
+        };
         row.set_child(Some(&hbox));
-        row
+        (row, count_label)
     };
 
+    let mut sidebar_counts: Vec<(String, gtk4::Label)> = Vec::new();
+
     sidebar_list.append(&make_section("VIEWS"));
-    sidebar_list.append(&make_item("all", "📋", "All"));
-    sidebar_list.append(&make_item("upcoming", "📅", "Upcoming"));
+    {
+        let (row, count) = make_item("all", "▦", None, "All", true);
+        sidebar_counts.push(("all".into(), count.unwrap()));
+        sidebar_list.append(&row);
+    }
+    {
+        let (row, count) = make_item("upcoming", "◷", None, "Upcoming", true);
+        sidebar_counts.push(("upcoming".into(), count.unwrap()));
+        sidebar_list.append(&row);
+    }
     sidebar_list.append(&make_section("TYPES"));
-    sidebar_list.append(&make_item("todo", "✅", "Todo"));
-    sidebar_list.append(&make_item("reminder", "🔔", "Reminder"));
-    sidebar_list.append(&make_item("idea", "💡", "Idea"));
-    sidebar_list.append(&make_item("note", "📝", "Note"));
-    sidebar_list.append(&make_item("question", "❓", "Question"));
+    for (id, icon_class, label) in [
+        ("todo", "icon-todo", "Todo"),
+        ("reminder", "icon-reminder", "Reminder"),
+        ("idea", "icon-idea", "Idea"),
+        ("note", "icon-note", "Note"),
+        ("question", "icon-question", "Question"),
+    ] {
+        let (row, count) = make_item(id, "●", Some(icon_class), label, true);
+        sidebar_counts.push((id.to_string(), count.unwrap()));
+        sidebar_list.append(&row);
+    }
     sidebar_list.append(&make_section("MORE"));
-    sidebar_list.append(&make_item("archive", "📦", "Archive"));
-    sidebar_list.append(&make_item("settings", "⚙", "Settings"));
-    sidebar_list.append(&make_item("errors", "⚠", "Errors"));
+    {
+        let (row, count) = make_item("archive", "▢", None, "Archive", true);
+        sidebar_counts.push(("archive".into(), count.unwrap()));
+        sidebar_list.append(&row);
+    }
+    {
+        let (row, _) = make_item("settings", "⚙", None, "Settings", false);
+        sidebar_list.append(&row);
+    }
+    {
+        // De-emphasized: session-only debug info, not part of the daily
+        // triage flow the rest of the sidebar serves.
+        let (row, _) = make_item("errors", "⚠", None, "Errors", false);
+        row.add_css_class("sidebar-row-minor");
+        sidebar_list.append(&row);
+    }
     sidebar_vbox.append(&sidebar_list);
 
     // ── Content area ──────────────────────────────────────────────
@@ -390,8 +483,19 @@ fn build_app_window(
 
     let stack = gtk4::Stack::builder().hexpand(true).vexpand(true).build();
 
+    let status_label = gtk4::Label::builder()
+        .label("0 notes")
+        .css_classes(["dim-label"])
+        .xalign(0.0)
+        .margin_start(12)
+        .margin_end(12)
+        .margin_top(6)
+        .margin_bottom(8)
+        .build();
+
     content_vbox.append(&search_entry);
     content_vbox.append(&stack);
+    content_vbox.append(&status_label);
 
     hbox.append(&sidebar_vbox);
     hbox.append(&gtk4::Separator::builder()
@@ -401,7 +505,8 @@ fn build_app_window(
     window.set_child(Some(&hbox));
 
     // ── AppState ──────────────────────────────────────────────────
-    let state = AppState::new(store, notes, cfg, stack.clone());
+    let state = AppState::new(store, notes, cfg, stack.clone(), status_label.clone());
+    state.sidebar_counts.replace(sidebar_counts);
 
     // Initial build
     rebuild_stack(&state);
@@ -478,6 +583,9 @@ fn build_note_list(notes: &[Note], state: AppState) -> gtk4::ScrolledWindow {
         .vexpand(true)
         .build();
 
+    // Capped and centered so cards don't stretch edge-to-edge on a wide
+    // window — full-width rows left the type chip and action buttons
+    // hundreds of pixels from the title they belong to.
     let list = gtk4::Box::builder()
         .orientation(gtk4::Orientation::Vertical)
         .spacing(8)
@@ -485,18 +593,33 @@ fn build_note_list(notes: &[Note], state: AppState) -> gtk4::ScrolledWindow {
         .margin_bottom(12)
         .margin_start(12)
         .margin_end(12)
+        .width_request(700)
+        .halign(gtk4::Align::Center)
         .build();
 
     let mut sorted: Vec<Note> = notes.iter().filter(|n| !n.done).cloned().collect();
     sorted.sort_by(|a, b| b.created.cmp(&a.created));
 
     if sorted.is_empty() {
-        list.append(
+        let empty = gtk4::Box::builder()
+            .orientation(gtk4::Orientation::Vertical)
+            .spacing(6)
+            .halign(gtk4::Align::Center)
+            .margin_top(64)
+            .build();
+        empty.append(
             &gtk4::Label::builder()
-                .label("No notes here yet.")
-                .margin_top(32)
+                .label("No notes here yet")
+                .css_classes(["note-title"])
                 .build(),
         );
+        empty.append(
+            &gtk4::Label::builder()
+                .label("Capture something with breadpad and it'll show up here.")
+                .css_classes(["dim-label"])
+                .build(),
+        );
+        list.append(&empty);
     } else {
         for note in &sorted {
             list.append(&build_note_card(note, state.clone()));
@@ -505,6 +628,26 @@ fn build_note_list(notes: &[Note], state: AppState) -> gtk4::ScrolledWindow {
 
     scroll.set_child(Some(&list));
     scroll
+}
+
+/// Short relative form for a recency-ordered list ("2h ago"); the exact
+/// absolute timestamp is still available via tooltip. Falls back to a plain
+/// date once a note is more than a week old, where "Nd ago" stops being
+/// useful at a glance.
+fn humanize_relative(dt: DateTime<Utc>) -> String {
+    let secs = Utc::now().signed_duration_since(dt).num_seconds().max(0);
+    if secs < 60 {
+        "just now".to_string()
+    } else if secs < 3600 {
+        format!("{}m ago", secs / 60)
+    } else if secs < 86_400 {
+        format!("{}h ago", secs / 3600)
+    } else if secs < 86_400 * 7 {
+        format!("{}d ago", secs / 86_400)
+    } else {
+        let local: DateTime<Local> = dt.into();
+        local.format("%b %d").to_string()
+    }
 }
 
 fn build_note_card(note: &Note, state: AppState) -> gtk4::Box {
@@ -530,6 +673,7 @@ fn build_note_card(note: &Note, state: AppState) -> gtk4::Box {
         .hexpand(true)
         .xalign(0.0)
         .wrap(true)
+        .css_classes(["note-title"])
         .build();
 
     let type_chip = gtk4::Label::builder()
@@ -546,14 +690,15 @@ fn build_note_card(note: &Note, state: AppState) -> gtk4::Box {
         .spacing(8)
         .build();
 
-    let created_str = {
+    let created_abs = {
         let local: chrono::DateTime<Local> = note.created.into();
         local.format("%b %d %H:%M").to_string()
     };
     let meta_label = gtk4::Label::builder()
-        .label(&created_str)
+        .label(&humanize_relative(note.created))
         .css_classes(["dim-label"])
         .xalign(0.0)
+        .tooltip_text(&created_abs)
         .build();
 
     // Date first, then chips
@@ -561,8 +706,9 @@ fn build_note_card(note: &Note, state: AppState) -> gtk4::Box {
     if let Some(ws) = &note.workspace {
         bottom_row.append(
             &gtk4::Label::builder()
-                .label(&format!("ws:{}", ws))
+                .label(&format!("ws {}", ws))
                 .css_classes(["type-chip"])
+                .tooltip_text(&format!("Workspace {}", ws))
                 .build(),
         );
     }

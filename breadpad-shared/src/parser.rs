@@ -85,6 +85,43 @@ fn rrule_weekday(wd: Weekday) -> &'static str {
     }
 }
 
+/// Explicit type prefixes, checked before any lexical heuristics. Short forms
+/// exist so the capture popup can be driven without reaching for the mouse —
+/// see `breadpad_shared::parser::detect_prefix_type`, which the popup's entry
+/// uses to live-highlight the matching chip as the user types.
+const TYPE_PREFIXES: &[(&str, NoteType)] = &[
+    ("td:", NoteType::Todo),
+    ("rem:", NoteType::Reminder),
+    ("idea:", NoteType::Idea),
+    ("note:", NoteType::Note),
+    ("q:", NoteType::Question),
+];
+
+/// If `text` starts with one of [`TYPE_PREFIXES`] (case-insensitive), returns
+/// the type it forces. Used both to classify at save time and to live-drive
+/// the popup's chip highlighting as the user types.
+pub fn detect_prefix_type(text: &str) -> Option<NoteType> {
+    let lower = text.trim_start().to_lowercase();
+    TYPE_PREFIXES
+        .iter()
+        .find(|(prefix, _)| lower.starts_with(prefix))
+        .map(|(_, nt)| nt.clone())
+}
+
+/// Strips a leading explicit type prefix (if any), returning the forced type
+/// and the remaining text with the prefix and any following whitespace removed.
+fn strip_explicit_prefix(text: &str) -> (Option<NoteType>, String) {
+    let trimmed = text.trim_start();
+    let lower = trimmed.to_lowercase();
+    for (prefix, nt) in TYPE_PREFIXES {
+        if lower.starts_with(prefix) {
+            let rest = trimmed[prefix.len()..].trim_start().to_string();
+            return (Some(nt.clone()), rest);
+        }
+    }
+    (None, text.to_string())
+}
+
 fn next_occurrence_of_weekday(wd: Weekday, time: NaiveTime) -> DateTime<Utc> {
     let local = Local::now();
     let days_ahead = (wd.num_days_from_monday() as i64
@@ -105,6 +142,8 @@ fn next_occurrence_of_weekday(wd: Weekday, time: NaiveTime) -> DateTime<Utc> {
 }
 
 pub fn parse_rule_based(text: &str, default_morning: &str) -> ClassificationResult {
+    let (forced_type, text_owned) = strip_explicit_prefix(text);
+    let text: &str = &text_owned;
     let p = patterns();
     let morning_time: NaiveTime = default_morning
         .split(':')
@@ -290,8 +329,9 @@ pub fn parse_rule_based(text: &str, default_morning: &str) -> ClassificationResu
             .to_string();
     }
 
-    // Infer note type
-    let note_type = infer_type(text, extracted_time.is_some(), rrule.is_some());
+    // Infer note type — an explicit prefix (`td:`, `rem:`, …) always wins.
+    let note_type =
+        forced_type.clone().unwrap_or_else(|| infer_type(text, extracted_time.is_some(), rrule.is_some()));
 
     // Trim artifacts
     cleaned = cleaned
@@ -303,7 +343,9 @@ pub fn parse_rule_based(text: &str, default_morning: &str) -> ClassificationResu
 
     // Calibrated confidence: high when structural signals drove the decision,
     // low when we fell back to "note" with no positive evidence.
-    let confidence = if rrule.is_some() || extracted_time.is_some() {
+    let confidence = if forced_type.is_some() {
+        0.99 // explicit prefix — unambiguous
+    } else if rrule.is_some() || extracted_time.is_some() {
         0.95 // time/recurrence extraction is deterministic
     } else {
         match &note_type {
@@ -408,6 +450,70 @@ mod tests {
     #[test]
     fn idea_prefix() {
         assert_eq!(p("idea: reactive state module in Lua").note_type, NoteType::Idea);
+    }
+
+    #[test]
+    fn idea_prefix_stripped_from_body() {
+        let r = p("idea: reactive state module in Lua");
+        assert_eq!(r.body, "reactive state module in Lua");
+    }
+
+    // ---- Explicit short prefixes (td:, rem:, note:, q:) ----
+
+    #[test]
+    fn td_prefix_is_todo() {
+        let r = p("td: buy milk");
+        assert_eq!(r.note_type, NoteType::Todo);
+        assert_eq!(r.body, "buy milk");
+    }
+
+    #[test]
+    fn rem_prefix_is_reminder() {
+        let r = p("rem: water the plants");
+        assert_eq!(r.note_type, NoteType::Reminder);
+        assert_eq!(r.body, "water the plants");
+    }
+
+    #[test]
+    fn note_prefix_is_note() {
+        // Without the prefix this would classify as Todo ("check ...").
+        let r = p("note: check engine light has been on for a week");
+        assert_eq!(r.note_type, NoteType::Note);
+        assert_eq!(r.body, "check engine light has been on for a week");
+    }
+
+    #[test]
+    fn q_prefix_is_question() {
+        // Without the prefix this has no strong signal and would fall to Note.
+        let r = p("q: ONNX rocm vs cpu perf");
+        assert_eq!(r.note_type, NoteType::Question);
+        assert_eq!(r.body, "ONNX rocm vs cpu perf");
+    }
+
+    #[test]
+    fn explicit_prefix_confidence_is_high() {
+        assert_eq!(p("td: buy milk").confidence, 0.99);
+    }
+
+    #[test]
+    fn explicit_prefix_is_case_insensitive() {
+        assert_eq!(p("TD: buy milk").note_type, NoteType::Todo);
+        assert_eq!(p("Rem: standup").note_type, NoteType::Reminder);
+    }
+
+    #[test]
+    fn explicit_prefix_overrides_time_extraction_type() {
+        // "at 7pm" alone would infer Reminder; an explicit td: prefix wins.
+        let r = p("td: pack bag at 7pm");
+        assert_eq!(r.note_type, NoteType::Todo);
+        assert!(r.time.is_some(), "time should still be extracted");
+    }
+
+    #[test]
+    fn detect_prefix_type_matches_parse() {
+        assert_eq!(detect_prefix_type("td: buy milk"), Some(NoteType::Todo));
+        assert_eq!(detect_prefix_type("rem: call mum"), Some(NoteType::Reminder));
+        assert_eq!(detect_prefix_type("no prefix here"), None);
     }
 
     #[test]
@@ -884,7 +990,6 @@ fn infer_type(text: &str, has_time: bool, has_rrule: bool) -> NoteType {
         return NoteType::Todo;
     }
     if lower.starts_with("what if ")
-        || lower.starts_with("idea:")
         || lower.contains("could ")
         || lower.contains("maybe ")
         || lower.starts_with("should we ")

@@ -636,11 +636,43 @@ fn build_window(
         }
     }
 
+    // Live prefix grammar: typing "td: ", "rem: ", "idea: ", "note: ", or
+    // "q: " at the start of the entry drives the chip selection without
+    // ever touching the mouse — the chips become feedback for what you
+    // typed rather than the only way to pick a type.
+    {
+        let selected_type_clone = selected_type.clone();
+        let chips_clone: Vec<(gtk4::Button, NoteType)> = chips.clone();
+        entry.connect_changed(move |e| {
+            let Some(nt) = breadpad_shared::parser::detect_prefix_type(&e.text()) else {
+                return;
+            };
+            *selected_type_clone.borrow_mut() = nt.clone();
+            for (btn, chip_nt) in &chips_clone {
+                if *chip_nt == nt {
+                    btn.add_css_class("active");
+                } else {
+                    btn.remove_css_class("active");
+                }
+            }
+        });
+    }
+
+    let hint = gtk4::Label::builder()
+        .label("td: · rem: · idea: · note: · q:")
+        .css_classes(["prefix-hint"])
+        .xalign(0.0)
+        .build();
+
     // Confirm button
     let confirm_btn = gtk4::Button::builder()
         .label("✓")
         .css_classes(["confirm-button"])
         .build();
+    let confirm_wrap = gtk4::Box::builder()
+        .css_classes(["confirm-wrap"])
+        .build();
+    confirm_wrap.append(&confirm_btn);
 
     let bottom_row = gtk4::Box::builder()
         .orientation(gtk4::Orientation::Horizontal)
@@ -650,9 +682,10 @@ fn build_window(
 
     let spacer = gtk4::Box::builder().hexpand(true).build();
     bottom_row.append(&spacer);
-    bottom_row.append(&confirm_btn);
+    bottom_row.append(&confirm_wrap);
 
     vbox.append(&entry);
+    vbox.append(&hint);
     vbox.append(&bottom_row);
     window.set_child(Some(&vbox));
 

@@ -43,9 +43,14 @@ window { border-radius: 8px; }
     border-color: @teal;
 }
 
+/* Shared "selected/active" language: a ghost/ outline default state that
+   stays quiet, and a solid, high-contrast accent fill for whatever is
+   currently selected — used identically by .type-chip.active and
+   .sidebar-row:selected so the two windows read as one system. */
 .type-chip {
-    background: @overlay;
-    color: @on-overlay;
+    background: transparent;
+    color: alpha(@fg, 0.6);
+    border: 1px solid alpha(@fg, 0.18);
     border-radius: 999px;
     padding: 4px 12px;
     font-size: 12px;
@@ -55,27 +60,69 @@ window { border-radius: 8px; }
 .type-chip.active {
     background: @blue;
     color: @on-accent;
+    border-color: @blue;
+    font-weight: 600;
 }
+
+/* Per-type tint so info badges (note cards, workspace/recur tags) stay
+   scannable at a glance without the old full-color emoji. */
+.note-card-todo      .type-chip { color: @green;  border-color: alpha(@green, 0.4); }
+.note-card-reminder  .type-chip { color: @yellow; border-color: alpha(@yellow, 0.4); }
+.note-card-idea      .type-chip { color: @pink;   border-color: alpha(@pink, 0.4); }
+.note-card-question  .type-chip { color: @teal;   border-color: alpha(@teal, 0.4); }
+.note-card-note      .type-chip { color: @blue;   border-color: alpha(@blue, 0.4); }
 
 .confirm-button {
     background: @blue;
     color: @on-accent;
     border: none;
     border-radius: 8px;
-    padding: 8px 16px;
+    padding: 10px 22px;
+    min-height: 20px;
+    font-size: 15px;
     font-weight: bold;
 }
 
+.confirm-button:hover { background: shade(@blue, 1.1); }
+
+/* Separates the primary action from the chip row it sits beside so it
+   doesn't read as just another pill. */
+.confirm-wrap {
+    border-left: 1px solid alpha(@fg, 0.12);
+    padding-left: 12px;
+    margin-left: 4px;
+}
+
+.prefix-hint {
+    color: alpha(@fg, 0.4);
+    font-size: 10px;
+    letter-spacing: 0.3px;
+}
+
 .note-card {
-    background: shade(@bg, 1.1);
-    border-radius: 8px;
+    background: shade(@bg, 1.12);
+    border: 1px solid alpha(@fg, 0.07);
+    border-radius: 10px;
     padding: 12px;
-    margin: 8px;
+    margin: 6px 0;
     border-left: 3px solid @blue;
 }
 
 .note-card:hover {
-    background: shade(@bg, 1.2);
+    background: shade(@bg, 1.22);
+    border-color: alpha(@fg, 0.12);
+}
+
+.note-title {
+    font-weight: 600;
+}
+
+.note-card .action-btn {
+    opacity: 0.45;
+}
+
+.note-card:hover .action-btn {
+    opacity: 1;
 }
 
 .search-entry {
@@ -83,7 +130,8 @@ window { border-radius: 8px; }
     color: @fg;
     border: 1px solid @overlay;
     border-radius: 6px;
-    padding: 8px 12px;
+    padding: 5px 10px;
+    font-size: 13px;
 }
 
 .search-entry:focus {
@@ -104,7 +152,27 @@ window { border-radius: 8px; }
 .sidebar-row:selected {
     background: @blue;
     color: @on-accent;
-    font-weight: 500;
+    font-weight: 600;
+}
+
+.sidebar-row-minor {
+    opacity: 0.5;
+    font-size: 12px;
+}
+
+.sidebar-count {
+    color: alpha(@fg, 0.45);
+    font-size: 11px;
+}
+
+.icon-todo     { color: @green;  }
+.icon-reminder { color: @yellow; }
+.icon-idea     { color: @pink;   }
+.icon-note     { color: @blue;   }
+.icon-question { color: @teal;   }
+
+.sidebar-row:selected .sidebar-count {
+    color: alpha(@on-accent, 0.75);
 }
 
 .sidebar-section-label {
@@ -119,14 +187,15 @@ window { border-radius: 8px; }
     background: transparent;
     border: none;
     border-radius: 6px;
-    padding: 2px 7px;
-    min-width: 28px;
-    min-height: 28px;
-    font-size: 14px;
+    padding: 3px 8px;
+    min-width: 32px;
+    min-height: 32px;
+    font-size: 16px;
 }
 
 .action-btn:hover {
     background: shade(@bg, 1.3);
+    opacity: 1;
 }
 
 .done-btn { color: @green; }
