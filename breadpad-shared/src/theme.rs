@@ -284,8 +284,14 @@ mod tests {
 
     #[test]
     fn css_defines_bg_color() {
+        // #1e1e2e (Catppuccin Mocha) was the default before bread-theme
+        // v0.2.10, which deliberately fixed background/surface/overlay to
+        // BOS's own dark theme (#0c0c0c etc.) instead of tracking pywal —
+        // see bread-theme's `palette.rs` `FIXED_BACKGROUND` doc comment.
+        // This assertion was never updated for that bump, so it started
+        // failing the moment breadpad's Cargo.toml pin moved to v0.2.10.
         let css = build_css(&Palette::default(), None);
-        assert!(css.contains("@define-color bg #1e1e2e"), "css missing bg: {}", &css[..300]);
+        assert!(css.contains("@define-color bg #0c0c0c"), "css missing bg: {}", &css[..300]);
     }
 
     #[test]
