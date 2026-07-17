@@ -26,6 +26,9 @@ regex.workspace = true
 ureq.workspace = true
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 ical = "0.11"
+# TODO(owner): switch to tag-pinned git dependency once bread-onnx/bread-utils are merged and tagged, matching the bread-theme pattern
+bread-onnx = { path = "../../bread-ecosystem-fix-worktree/bread-onnx" }
+bread-utils = { path = "../../bread-ecosystem-fix-worktree/bread-utils" }
 
 [dev-dependencies]
 tempfile = "3"

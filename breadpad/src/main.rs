@@ -536,13 +536,14 @@ fn run_popup(preset_type: Option<String>, no_classify: bool, cfg: Config) -> Res
 }
 
 fn get_active_workspace() -> Option<String> {
-    // Use hyprctl via CLI since the async API would require a runtime here
-    let out = std::process::Command::new("hyprctl")
-        .args(["activeworkspace", "-j"])
-        .output()
-        .ok()?;
-    let val: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
-    val.get("id").and_then(|v| v.as_i64()).map(|id| id.to_string())
+    // Was a `Command::new("hyprctl").output()` call with no timeout (the
+    // `hyprland` crate's async API would require a runtime here, which this
+    // call site doesn't have) — bread_utils::hypr's socket1 client is
+    // synchronous and needs neither a subprocess nor a runtime.
+    bread_utils::hypr::request_json("j/activeworkspace")?
+        .get("id")
+        .and_then(|v| v.as_i64())
+        .map(|id| id.to_string())
 }
 
 fn build_window(

@@ -212,15 +212,13 @@ impl Config {
 }
 
 pub fn config_path() -> PathBuf {
-    dirs::config_dir()
-        .unwrap_or_else(|| PathBuf::from("~/.config"))
-        .join("breadpad")
-        .join("breadpad.toml")
+    // Was `dirs::config_dir().unwrap_or_else(|| PathBuf::from("~/.config"))`
+    // — same literal-tilde-fallback bug as `classifier.rs::model_dir` (see
+    // its doc comment) and breadclip-core's `data_dir`; PathBuf/std::fs
+    // never expand `~`.
+    bread_utils::xdg::config_dir("breadpad").join("breadpad.toml")
 }
 
 pub fn style_css_path() -> PathBuf {
-    dirs::config_dir()
-        .unwrap_or_else(|| PathBuf::from("~/.config"))
-        .join("breadpad")
-        .join("style.css")
+    bread_utils::xdg::config_dir("breadpad").join("style.css")
 }

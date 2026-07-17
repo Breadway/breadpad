@@ -16,7 +16,7 @@ pub enum ExecutionProvider {
 impl ExecutionProvider {
     pub fn as_str(&self) -> &str {
         match self {
-            ExecutionProvider::Gpu => "ROCm (iGPU)",
+            ExecutionProvider::Gpu => "MIGraphX (iGPU)",
             ExecutionProvider::Cpu => "CPU",
         }
     }
@@ -32,10 +32,13 @@ pub struct Classifier {
 }
 
 fn model_dir() -> PathBuf {
-    dirs::data_local_dir()
-        .unwrap_or_else(|| PathBuf::from("~/.local/share"))
-        .join("breadpad")
-        .join("model")
+    // Was `dirs::data_local_dir().unwrap_or_else(|| PathBuf::from("~/.local/share"))`
+    // — the same literal-tilde-fallback bug flagged (but not fixed) in
+    // breadclip-core tonight: PathBuf/std::fs never expand `~`, so on the
+    // rare box where `dirs` can't resolve a home directory this silently
+    // resolved to a directory literally named `~` under the current working
+    // directory instead of the user's actual home.
+    bread_utils::xdg::data_dir("breadpad").join("model")
 }
 
 impl Classifier {
@@ -246,21 +249,46 @@ fn softmax_single(logits: &[f32], idx: usize) -> f32 {
 fn try_load_session(
     path: &std::path::Path,
 ) -> (Option<ort::session::Session>, ExecutionProvider) {
-    // Try ROCm (iGPU) first, fall back to CPU.
-    let rocm_available = {
+    // AMD iGPU via MIGraphX, falling back to CPU. This used to request the
+    // classic `ort::ep::ROCm` (ROCMExecutionProvider) first — per this
+    // machine's own breadsearch-gpu-backends operator notes, that EP
+    // silently no-ops back to CPU on this class of system (distro ROCm
+    // onnxruntime builds, e.g. Arch's onnxruntime-rocm, are commonly
+    // compiled with `--use_migraphx`, not `--use_rocm`), so "ROCm (iGPU)"
+    // could report as active in this struct's own `active_provider` while
+    // every inference actually ran on CPU. See bread_onnx::provider's doc
+    // comment for the full history — breadsearch's own embed.rs already
+    // got this right.
+    //
+    // The `is_available()` gate (kept from the original implementation)
+    // means `active_provider` only ever claims Gpu when we actually
+    // attempted the GPU build — bread_onnx::build_session's loud EP-
+    // selection logging (visible once tracing_subscriber is initialized,
+    // which this crate's own main.rs already does) is what catches the
+    // *silent per-node fallback* class of bug this rewrite exists to fix,
+    // rather than papering over it by unconditionally reporting Gpu.
+    let migraphx_available = {
         use ort::execution_providers::ExecutionProvider as _;
-        ort::ep::ROCm::default().is_available().unwrap_or(false)
+        ort::ep::MIGraphX::default().is_available().unwrap_or(false)
     };
-    if rocm_available {
-        match build_onnx_session(path, ort::ep::ROCm::default().build()) {
+    if migraphx_available {
+        match bread_onnx::build_session(
+            path,
+            ort::session::builder::GraphOptimizationLevel::Level3,
+            &[bread_onnx::Provider::MiGraphX { device_id: 0 }],
+        ) {
             Ok(s) => {
-                tracing::info!("ONNX session loaded (ROCm iGPU)");
+                tracing::info!("ONNX session loaded (MIGraphX iGPU)");
                 return (Some(s), ExecutionProvider::Gpu);
             }
-            Err(e) => tracing::debug!("ROCm EP unavailable: {}; trying CPU", e),
+            Err(e) => tracing::debug!("MIGraphX EP unavailable: {}; trying CPU", e),
         }
     }
-    match build_onnx_session(path, ort::ep::CPU::default().build()) {
+    match bread_onnx::build_session(
+        path,
+        ort::session::builder::GraphOptimizationLevel::Level3,
+        &[bread_onnx::Provider::Cpu],
+    ) {
         Ok(s) => {
             tracing::info!("ONNX session loaded (CPU)");
             (Some(s), ExecutionProvider::Cpu)
@@ -270,15 +298,4 @@ fn try_load_session(
             (None, ExecutionProvider::Cpu)
         }
     }
-}
-
-fn build_onnx_session(
-    path: &std::path::Path,
-    ep: ort::ep::ExecutionProviderDispatch,
-) -> anyhow::Result<ort::session::Session> {
-    let mut builder = ort::session::Session::builder()
-        .map_err(|e| anyhow::anyhow!("builder: {}", e))?
-        .with_execution_providers([ep])
-        .map_err(|e| anyhow::anyhow!("ep: {}", e))?;
-    builder.commit_from_file(path).map_err(|e| anyhow::anyhow!("load: {}", e))
 }

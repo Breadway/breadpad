@@ -23,3 +23,5 @@ gtk4-layer-shell.workspace = true
 hyprland.workspace = true
 dirs.workspace = true
 tokio.workspace = true
+# TODO(owner): switch to tag-pinned git dependency once bread-utils is merged and tagged, matching the bread-theme pattern
+bread-utils = { path = "../../bread-ecosystem-fix-worktree/bread-utils" }

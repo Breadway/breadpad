@@ -26,7 +26,11 @@ tokio = { version = "1", features = ["full"] }
 zbus = { version = "4", default-features = false, features = ["tokio"] }
 ort = { version = "2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "api-24", "rocm", "load-dynamic"] }
 ndarray = "0.16"
-tokenizers = { version = "0.21", default-features = false, features = ["http", "fancy-regex"] }
+# Bumped 0.21 -> 0.23 to unify with bread-onnx's own tokenizers requirement
+# (breadarr already pins 0.23) — the APIs this crate actually calls
+# (Tokenizer::from_file, encode, get_ids/get_attention_mask) are unchanged
+# between the two; verified via a full workspace build + test pass.
+tokenizers = { version = "0.23", default-features = false, features = ["http", "fancy-regex"] }
 gtk4 = { version = "0.11", features = ["v4_12"] }
 gtk4-layer-shell = "0.8"
 hyprland = "0.4.0-beta.3"
