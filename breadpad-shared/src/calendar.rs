@@ -18,7 +18,13 @@ impl CalDavClient {
     pub fn new(config: CalendarConfig) -> Self {
         // `reqwest::Client::builder().build()` can only fail if the TLS backend can't be
         // initialised; fall back to `Client::new()` semantics rather than panicking.
+        //
+        // A request-wide timeout is set here (rather than on `Client::new()`'s
+        // untimed defaults) so a hung/unreachable CalDAV server can't hang
+        // whatever's making the request indefinitely — `reqwest::Client::new()`
+        // has no timeout of its own.
         let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(15))
             .build()
             .unwrap_or_else(|e| {
                 tracing::warn!("falling back to default HTTP client: {}", e);

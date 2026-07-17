@@ -44,11 +44,43 @@ impl Store {
         }
     }
 
+    /// Path to the sidecar lock file guarding the whole note store — a
+    /// single lock covers both `notes.jsonl` and `archive.jsonl` since
+    /// `rotate_archive` moves notes between them in one logical operation.
+    fn lock_path(&self) -> PathBuf {
+        self.notes_path.with_extension("lock")
+    }
+
+    /// Blocks until an exclusive advisory lock (`flock`) is held on the
+    /// sidecar lock file, and holds it for as long as the returned `File`
+    /// stays alive (the lock is released automatically when it's dropped,
+    /// same as it would be on process exit/crash).
+    ///
+    /// breadpad (capture/fire/snooze), breadman (edit), and multiple
+    /// concurrent reminder-fire processes all read and rewrite the same
+    /// JSONL file with no coordination otherwise: two concurrent
+    /// load-modify-rewrite cycles racing `write_all`'s rename can silently
+    /// lose one side's change. This is intentionally one lock for the
+    /// entire store rather than per-note or per-file locking — contention
+    /// is expected to be rare (a handful of short-lived CLI-ish processes,
+    /// not a server), so simplicity wins over fine-grained locking here.
+    fn acquire_lock(&self) -> Result<fs::File> {
+        let file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(self.lock_path())
+            .context("failed to open notes store lock file")?;
+        file.lock().context("failed to acquire notes store lock")?;
+        Ok(file)
+    }
+
     pub fn load_all(&self) -> Result<Vec<Note>> {
+        let _lock = self.acquire_lock()?;
         self.load_from(&self.notes_path)
     }
 
     pub fn load_archive(&self) -> Result<Vec<Note>> {
+        let _lock = self.acquire_lock()?;
         self.load_from(&self.archive_path)
     }
 
@@ -74,12 +106,15 @@ impl Store {
     }
 
     pub fn save_note(&self, note: &Note) -> Result<()> {
-        let mut file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&self.notes_path)?;
-        let line = serde_json::to_string(note)?;
-        writeln!(file, "{}", line)?;
+        {
+            let _lock = self.acquire_lock()?;
+            let mut file = OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&self.notes_path)?;
+            let line = serde_json::to_string(note)?;
+            writeln!(file, "{}", line)?;
+        }
 
         if let Some(cal_cfg) = &self.calendar {
             if cal_cfg.enabled && (note.time.is_some() || note.rrule.is_some()) {
@@ -103,13 +138,18 @@ impl Store {
     }
 
     pub fn delete_note(&self, id: &str) -> Result<()> {
-        let all = self.load_all()?;
-        let (to_delete, keep): (Vec<Note>, Vec<Note>) = all.into_iter().partition(|n| n.id == id);
-        self.write_all(&self.notes_path, &keep)?;
+        let to_delete_note = {
+            let _lock = self.acquire_lock()?;
+            let all = self.load_from(&self.notes_path)?;
+            let (to_delete, keep): (Vec<Note>, Vec<Note>) =
+                all.into_iter().partition(|n| n.id == id);
+            self.write_all(&self.notes_path, &keep)?;
+            to_delete.into_iter().next()
+        };
 
         if let Some(cal_cfg) = &self.calendar {
             if cal_cfg.enabled {
-                if let Some(note) = to_delete.into_iter().next() {
+                if let Some(note) = to_delete_note {
                     spawn_caldav_delete(caldav_uid(&note), cal_cfg.clone());
                 }
             }
@@ -118,11 +158,17 @@ impl Store {
         Ok(())
     }
 
+    /// Holds the store lock across the whole load-modify-write span (not
+    /// just the write) — `load_from` is used directly here rather than the
+    /// public, self-locking `load_all`, since re-acquiring the same
+    /// process-wide advisory lock while already holding it would block
+    /// forever (`flock` isn't re-entrant across separate file descriptors).
     fn rewrite_notes<F>(&self, mut f: F) -> Result<()>
     where
         F: FnMut(Note) -> Note,
     {
-        let notes: Vec<Note> = self.load_all()?.into_iter().map(|n| f(n)).collect();
+        let _lock = self.acquire_lock()?;
+        let notes: Vec<Note> = self.load_from(&self.notes_path)?.into_iter().map(|n| f(n)).collect();
         self.write_all(&self.notes_path, &notes)
     }
 
@@ -141,8 +187,9 @@ impl Store {
     }
 
     pub fn rotate_archive(&self, archive_after_days: i64) -> Result<usize> {
+        let _lock = self.acquire_lock()?;
         let cutoff = Utc::now() - Duration::days(archive_after_days);
-        let notes = self.load_all()?;
+        let notes = self.load_from(&self.notes_path)?;
         let (to_archive, keep): (Vec<Note>, Vec<Note>) = notes
             .into_iter()
             .partition(|n| n.done && n.completed.map_or(false, |c| c < cutoff));

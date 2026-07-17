@@ -206,6 +206,42 @@ pub(crate) fn parse_next_from_rrule(rrule_str: &str, default_morning: &str) -> O
                 (now.date_naive() + chrono::Duration::days(days_ahead)).and_time(fire_time);
             return Some(local_naive_to_utc(target_date));
         }
+        "MONTHLY" => {
+            use chrono::Datelike;
+            // BYMONTHDAY isn't guaranteed to be present — breadman's note
+            // editor lets a user type an arbitrary RRULE by hand, and
+            // "FREQ=MONTHLY" alone is a perfectly valid (if under-specified)
+            // one. Fall back to today's day-of-month, mirroring how WEEKLY
+            // above defaults BYDAY to "MO" when absent.
+            let day: u32 = parts
+                .get("BYMONTHDAY")
+                .and_then(|v| v.parse().ok())
+                .filter(|d: &u32| (1..=31).contains(d))
+                .unwrap_or_else(|| now.day());
+
+            let mut year = now.year();
+            let mut month = now.month();
+
+            // Walk forward month by month for the next calendar date that
+            // (a) actually has this day-of-month (a 31st skips e.g. April)
+            // and (b) is still in the future. Bounded to 24 months as a
+            // defensive cap — every valid day (1-31) recurs well within a
+            // year, so this should never come close to firing.
+            for _ in 0..24 {
+                if let Some(date) = chrono::NaiveDate::from_ymd_opt(year, month, day) {
+                    let candidate = date.and_time(fire_time);
+                    if now.naive_local() < candidate {
+                        return Some(local_naive_to_utc(candidate));
+                    }
+                }
+                month += 1;
+                if month > 12 {
+                    month = 1;
+                    year += 1;
+                }
+            }
+            None
+        }
         _ => None,
     }
 }
@@ -404,7 +440,40 @@ mod tests {
 
     #[test]
     fn unknown_freq_returns_none() {
-        assert!(parse_next_from_rrule("RRULE:FREQ=MONTHLY;BYHOUR=9;BYMINUTE=0", "08:00").is_none());
+        assert!(parse_next_from_rrule("RRULE:FREQ=YEARLY;BYHOUR=9;BYMINUTE=0", "08:00").is_none());
+    }
+
+    #[test]
+    fn monthly_reschedules_instead_of_returning_none() {
+        // This used to be the exact bug: MONTHLY fell into the `_ => None`
+        // arm, so a monthly reminder fired once and never rescheduled.
+        let t = parse_next_from_rrule("RRULE:FREQ=MONTHLY;BYMONTHDAY=15;BYHOUR=9;BYMINUTE=0", "08:00");
+        assert!(t.is_some(), "MONTHLY must produce a next occurrence, not None");
+        let local: chrono::DateTime<Local> = t.unwrap().into();
+        assert_eq!(local.day(), 15);
+        assert_eq!(local.hour(), 9);
+        assert_eq!(local.minute(), 0);
+        assert!(local > Local::now());
+    }
+
+    #[test]
+    fn monthly_without_bymonthday_uses_todays_day_of_month() {
+        let t = parse_next_from_rrule("RRULE:FREQ=MONTHLY;BYHOUR=23;BYMINUTE=59", "08:00").unwrap();
+        let local: chrono::DateTime<Local> = t.into();
+        assert_eq!(local.day(), Local::now().day());
+    }
+
+    #[test]
+    fn monthly_on_the_31st_skips_shorter_months() {
+        // Every candidate month/day combination this walks must actually
+        // exist (from_ymd_opt returning None for e.g. April 31 is skipped
+        // internally) — this mostly guards against a panic/infinite loop
+        // regression rather than a specific date, since "next Feb 31" et al
+        // must fall through to a month that really has a 31st.
+        let t = parse_next_from_rrule("RRULE:FREQ=MONTHLY;BYMONTHDAY=31;BYHOUR=9;BYMINUTE=0", "08:00");
+        assert!(t.is_some());
+        let local: chrono::DateTime<Local> = t.unwrap().into();
+        assert_eq!(local.day(), 31);
     }
 
     #[test]

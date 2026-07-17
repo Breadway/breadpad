@@ -61,8 +61,14 @@ impl OllamaClient {
             "stream": false
         });
 
+        // ureq 2's default agent has no overall request timeout, so a hung
+        // local Ollama endpoint would otherwise stall this call forever —
+        // and since classification now runs from an idle callback after the
+        // capture window has already closed (see `main.rs`), a hang here is
+        // invisible to the user, not just slow.
         let response = ureq::post(&url)
             .set("Content-Type", "application/json")
+            .timeout(std::time::Duration::from_secs(10))
             .send_json(payload)
             .map_err(|e| anyhow::anyhow!("Ollama HTTP error: {}", e))?;
 

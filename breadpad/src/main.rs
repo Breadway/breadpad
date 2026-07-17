@@ -694,6 +694,7 @@ fn build_window(
     let selected_type_clone = selected_type.clone();
     let cfg_clone = cfg.clone();
     let workspace_clone = workspace.clone();
+    let app_clone = app.clone();
 
     let save_and_close = {
         let win = win_clone.clone();
@@ -701,6 +702,7 @@ fn build_window(
         let selected_type = selected_type_clone.clone();
         let cfg = cfg_clone.clone();
         let workspace = workspace_clone.clone();
+        let app = app_clone.clone();
 
         move || {
             let text = entry.text().to_string();
@@ -711,10 +713,20 @@ fn build_window(
             let note_type = selected_type.borrow().clone();
             let cfg_c = cfg.clone();
             let ws_c = workspace.clone();
-            // Close first so the popup disappears immediately, then save.
+            // Close first so the popup disappears immediately, then save —
+            // but `hold()` the application across the gap first. Without
+            // this, closing the only open window can let the whole process
+            // (and with it, the `idle_add_local_once` callback below that
+            // actually writes the note) exit before that callback ever
+            // runs, silently losing the note the user just typed. `hold()`
+            // returns an RAII guard that keeps the app alive with zero
+            // windows open until it's dropped, right after the save
+            // finishes below.
+            let hold_guard = app.hold();
             win.close();
             glib::idle_add_local_once(move || {
                 save_note_classified(&text, note_type, no_classify, cfg_c, ws_c);
+                drop(hold_guard);
             });
         }
     };

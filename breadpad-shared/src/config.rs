@@ -193,6 +193,20 @@ impl Config {
         }
         let text = toml::to_string_pretty(self)?;
         fs::write(&path, text)?;
+
+        // This file can hold the CalDAV password in plaintext (see
+        // `CalendarConfig`'s own doc comment) — `fs::write` creates it with
+        // the process's default umask, which on most setups means
+        // world-readable. Lock it down to owner-only rather than just
+        // telling the user to do it themselves.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if let Err(e) = fs::set_permissions(&path, fs::Permissions::from_mode(0o600)) {
+                tracing::warn!("failed to restrict permissions on {}: {}", path.display(), e);
+            }
+        }
+
         Ok(())
     }
 }
