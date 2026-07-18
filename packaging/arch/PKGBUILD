@@ -1,11 +1,11 @@
-# Maintainer: Breadway <rileyhorsham@gmail.com>
+# Maintainer: Breadway <plasticbread849@gmail.com>
 
 pkgname=breadpad
 pkgver=0.3.1
 pkgrel=1
 pkgdesc="Quick-capture scratchpad and note viewer with AI classification"
 arch=('x86_64')
-url="https://github.com/Breadway/breadpad"
+url="https://git.breadway.dev/Breadway/breadpad"
 license=('MIT')
 # Some Rust deps (ring/mlua) build vendored C/asm into static archives; makepkg's
 # default -flto=auto emits GCC LTO bitcode the Rust (lld) link cannot read,

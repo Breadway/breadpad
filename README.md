@@ -146,7 +146,7 @@ breadpad model-info   # shows active EP and model path
 ## Installation
 
 ```bash
-git clone https://github.com/breadway/breadpad
+git clone https://git.breadway.dev/Breadway/breadpad
 cd breadpad
 cargo build --release
 cp target/release/breadpad ~/.local/bin/
