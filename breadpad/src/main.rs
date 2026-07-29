@@ -13,6 +13,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, Once};
 
+mod screenshot;
+
 static ORT_INIT: Once = Once::new();
 
 fn init_ort_once(cfg: &Config) {
@@ -41,6 +43,29 @@ mod args {
         pub model_info: bool,
         pub calendar_test: bool,
         pub calendar_list_uid: Option<String>,
+        pub screenshot: Option<String>,
+        pub output: Option<String>,
+        pub width: u32,
+        pub height: u32,
+    }
+
+    impl Args {
+        /// `None` for a normal run. Exits the process with an error if
+        /// `--screenshot` was given without `--output`, before any GTK
+        /// setup happens.
+        pub fn screenshot_request(&self) -> Option<crate::screenshot::ScreenshotRequest> {
+            let view = self.screenshot.clone()?;
+            let Some(output) = self.output.clone() else {
+                eprintln!("breadpad: --screenshot requires --output");
+                std::process::exit(1);
+            };
+            Some(crate::screenshot::ScreenshotRequest {
+                view,
+                output: output.into(),
+                width: self.width,
+                height: self.height,
+            })
+        }
     }
 
     pub fn parse() -> Args {
@@ -53,6 +78,10 @@ mod args {
             model_info: false,
             calendar_test: false,
             calendar_list_uid: None,
+            screenshot: None,
+            output: None,
+            width: 1920,
+            height: 1080,
         };
         let raw: Vec<String> = std::env::args().skip(1).collect();
         let mut i = 0;
@@ -80,6 +109,26 @@ mod args {
                                 Some(raw.get(i).cloned().unwrap_or_default());
                         }
                         _ => {}
+                    }
+                }
+                "--screenshot" => {
+                    i += 1;
+                    args.screenshot = raw.get(i).cloned();
+                }
+                "--output" => {
+                    i += 1;
+                    args.output = raw.get(i).cloned();
+                }
+                "--width" => {
+                    i += 1;
+                    if let Some(v) = raw.get(i).and_then(|s| s.parse().ok()) {
+                        args.width = v;
+                    }
+                }
+                "--height" => {
+                    i += 1;
+                    if let Some(v) = raw.get(i).and_then(|s| s.parse().ok()) {
+                        args.height = v;
                     }
                 }
                 _ => {}
@@ -120,7 +169,8 @@ fn main() -> Result<()> {
         return cmd_calendar_list_uid(&note_id, &cfg);
     }
 
-    run_popup(args.note_type, args.no_classify, cfg)
+    let screenshot_req = args.screenshot_request();
+    run_popup(args.note_type, args.no_classify, cfg, screenshot_req)
 }
 
 fn cmd_status(cfg: &Config) -> Result<()> {
@@ -510,22 +560,36 @@ fn build_reminder_window(
     window.present();
 }
 
-fn run_popup(preset_type: Option<String>, no_classify: bool, cfg: Config) -> Result<()> {
+fn run_popup(
+    preset_type: Option<String>,
+    no_classify: bool,
+    cfg: Config,
+    screenshot_req: Option<screenshot::ScreenshotRequest>,
+) -> Result<()> {
     // Try to get current Hyprland workspace
     let workspace = get_active_workspace();
 
-    let app = gtk4::Application::builder()
-        .application_id("com.breadway.breadpad")
-        .build();
+    let mut builder = gtk4::Application::builder().application_id("com.breadway.breadpad");
+    if screenshot_req.is_some() {
+        // GApplication is single-instance by default; this machine typically
+        // already has a real breadpad instance, so without this a
+        // screenshot run would just toggle-close the *existing* instance's
+        // window instead of starting a fresh one that ever sees
+        // `screenshot_req` (see the `app.windows().first()` toggle below).
+        builder = builder.flags(gtk4::gio::ApplicationFlags::NON_UNIQUE);
+    }
+    let app = builder.build();
 
     let cfg = Arc::new(cfg);
 
     app.connect_activate(move |app| {
-        if let Some(win) = app.windows().first().cloned() {
-            win.close();
-            return;
+        if screenshot_req.is_none() {
+            if let Some(win) = app.windows().first().cloned() {
+                win.close();
+                return;
+            }
         }
-        build_window(app, cfg.clone(), workspace.clone(), preset_type.clone(), no_classify);
+        build_window(app, cfg.clone(), workspace.clone(), preset_type.clone(), no_classify, screenshot_req.clone());
     });
 
     let code = app.run_with_args::<String>(&[]);
@@ -551,6 +615,7 @@ fn build_window(
     workspace: Option<String>,
     preset_type: Option<String>,
     no_classify: bool,
+    screenshot_req: Option<screenshot::ScreenshotRequest>,
 ) {
     let window = gtk4::ApplicationWindow::builder()
         .application(app)
@@ -709,6 +774,10 @@ fn build_window(
         glib::Propagation::Proceed
     });
     window.add_controller(key_ctrl);
+
+    if let Some(req) = screenshot_req {
+        screenshot::dispatch(&window, req);
+    }
 
     window.present();
     entry.grab_focus();
