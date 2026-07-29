@@ -170,6 +170,21 @@ fn main() -> Result<()> {
     }
 
     let screenshot_req = args.screenshot_request();
+    if let Some(req) = &screenshot_req {
+        if req.view == "reminder" || req.view == "reminder-snooze" {
+            // The real path (`fire <id>`, above) needs a real due note from
+            // the Store. A screenshot doesn't have one to work with — and
+            // shouldn't wait for one — so it builds a throwaway sample
+            // instead, never touching the Store at all.
+            let mut sample = Note::new(
+                "Sample reminder text".into(),
+                NoteType::from_str("reminder"),
+                None,
+            );
+            sample.time = Some(chrono::Utc::now());
+            return run_reminder_window(sample, &cfg, screenshot_req);
+        }
+    }
     run_popup(args.note_type, args.no_classify, cfg, screenshot_req)
 }
 
@@ -326,19 +341,28 @@ fn cmd_fire(id: &str, cfg: &Config) -> Result<()> {
         }
     }
 
-    run_reminder_window(note, cfg)
+    run_reminder_window(note, cfg, None)
 }
 
-fn run_reminder_window(note: breadpad_shared::types::Note, cfg: &Config) -> Result<()> {
-    let app = gtk4::Application::builder()
-        .application_id("com.breadway.breadpad.reminder")
-        .build();
+fn run_reminder_window(
+    note: breadpad_shared::types::Note,
+    cfg: &Config,
+    screenshot_req: Option<screenshot::ScreenshotRequest>,
+) -> Result<()> {
+    let mut builder = gtk4::Application::builder().application_id("com.breadway.breadpad.reminder");
+    if screenshot_req.is_some() {
+        // Same reasoning as run_popup's NON_UNIQUE: a screenshot run must
+        // get its own fresh window, never activate a real reminder that
+        // happens to already be showing.
+        builder = builder.flags(gtk4::gio::ApplicationFlags::NON_UNIQUE);
+    }
+    let app = builder.build();
 
     let note = Arc::new(note);
     let cfg = Arc::new(cfg.clone());
 
     app.connect_activate(move |app| {
-        build_reminder_window(app, note.clone(), cfg.clone());
+        build_reminder_window(app, note.clone(), cfg.clone(), screenshot_req.clone());
     });
 
     app.run_with_args::<String>(&[]);
@@ -381,6 +405,7 @@ fn build_reminder_window(
     app: &gtk4::Application,
     note: Arc<breadpad_shared::types::Note>,
     cfg: Arc<Config>,
+    screenshot_req: Option<screenshot::ScreenshotRequest>,
 ) {
     let window = gtk4::ApplicationWindow::builder()
         .application(app)
@@ -557,6 +582,15 @@ fn build_reminder_window(
     outer.append(&btn_row);
 
     window.set_child(Some(&outer));
+
+    if let Some(req) = screenshot_req {
+        if req.view == "reminder-snooze" {
+            screenshot::capture_with_snooze_open(&window, &req, snooze_popover.clone());
+        } else {
+            screenshot::capture_window(&window, &req);
+        }
+    }
+
     window.present();
 }
 
