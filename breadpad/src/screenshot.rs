@@ -10,10 +10,13 @@
 //! `--width`/`--height` are just three more fields on that same `Args`
 //! struct instead.
 //!
-//! Only the "popup" view (the compose window from `run_popup`) is wired up
-//! — the reminder window (`run_reminder_window`, reached via `fire <id>`)
-//! needs a real stored `Note` to render, which isn't worth fabricating for
-//! a screenshot pass.
+//! Three views: "popup" (the compose window from `run_popup`), "reminder"
+//! (the alert window from `run_reminder_window`/`build_reminder_window`,
+//! normally only reachable via a real due note through `fire <id>`, built
+//! here against a fabricated sample `Note` instead — see `main`'s
+//! `screenshot_req.view == "reminder"` branch, which skips the Store lookup
+//! entirely), and "reminder-snooze" (the same window with its snooze
+//! popover open).
 
 use gtk4::prelude::*;
 use std::path::PathBuf;
@@ -23,6 +26,11 @@ use std::time::Duration;
 /// before grim runs — `map` fires once the surface exists, not once
 /// anything has been drawn into it.
 const SETTLE_DELAY: Duration = Duration::from_millis(300);
+
+/// Delay before popping the snooze popover open — same reasoning as every
+/// other app's PRE_POPUP_DELAY: the parent window's own layout needs a beat
+/// to settle first.
+const PRE_POPUP_DELAY: Duration = Duration::from_millis(300);
 
 #[derive(Clone)]
 pub struct ScreenshotRequest {
@@ -48,10 +56,51 @@ pub fn dispatch(window: &gtk4::ApplicationWindow, req: ScreenshotRequest) {
             });
         }
         other => {
-            eprintln!("breadpad: unknown screenshot view '{other}' (known: popup)");
+            eprintln!("breadpad: unknown screenshot view '{other}' (known: popup, reminder, reminder-snooze)");
             std::process::exit(1);
         }
     }
+}
+
+/// Same shape as `dispatch`'s "popup" arm, for the reminder window itself
+/// (view "reminder") — pulled out since `build_reminder_window` calls this
+/// directly rather than going through `dispatch` (the reminder window is
+/// built via a completely separate `run_reminder_window` entry point, not
+/// `run_popup`'s).
+pub fn capture_window(window: &gtk4::ApplicationWindow, req: &ScreenshotRequest) {
+    let output = req.output.clone();
+    let (width, height) = (req.width as i32, req.height as i32);
+    window.connect_map(move |_| {
+        let output = output.clone();
+        gtk4::glib::timeout_add_local_once(SETTLE_DELAY, move || {
+            finish(bread_screenshots::capture_region(0, 0, width, height, &output));
+        });
+    });
+}
+
+/// View "reminder-snooze": force the snooze popover open shortly after the
+/// window maps, then capture once *it* maps.
+pub fn capture_with_snooze_open(
+    window: &gtk4::ApplicationWindow,
+    req: &ScreenshotRequest,
+    snooze_popover: gtk4::Popover,
+) {
+    let output = req.output.clone();
+    let (width, height) = (req.width as i32, req.height as i32);
+    let popover_to_open = snooze_popover.clone();
+    window.connect_map(move |_| {
+        popover_to_open.set_autohide(false);
+        let popover_to_open = popover_to_open.clone();
+        gtk4::glib::timeout_add_local_once(PRE_POPUP_DELAY, move || {
+            popover_to_open.popup();
+        });
+    });
+    snooze_popover.connect_map(move |_| {
+        let output = output.clone();
+        gtk4::glib::timeout_add_local_once(SETTLE_DELAY, move || {
+            finish(bread_screenshots::capture_region(0, 0, width, height, &output));
+        });
+    });
 }
 
 fn finish(result: anyhow::Result<()>) {

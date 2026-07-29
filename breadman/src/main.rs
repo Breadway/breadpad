@@ -506,7 +506,7 @@ fn build_app_window(
         let state_c = state.clone();
         let window_c = window.clone();
         new_note_btn.connect_clicked(move |_| {
-            show_add_note_window(&window_c, state_c.clone());
+            show_add_note_window(&window_c, state_c.clone(), |_| {});
         });
     }
 
@@ -527,7 +527,7 @@ fn build_app_window(
     stack.set_visible_child_name(initial);
 
     if let Some(req) = screenshot_req {
-        screenshot::dispatch(&window, req);
+        screenshot::dispatch(&window, req, state.clone(), new_note_btn.clone());
     }
 
     window.present();
@@ -796,7 +796,7 @@ fn build_note_card(note: &Note, state: AppState) -> gtk4::Box {
 
 // ── Add note window ───────────────────────────────────────────────────────────
 
-fn show_add_note_window(parent: &gtk4::ApplicationWindow, state: AppState) {
+fn show_add_note_window(parent: &gtk4::ApplicationWindow, state: AppState, on_build: impl FnOnce(&gtk4::Window)) {
     let win = gtk4::Window::builder()
         .title("New Note")
         .transient_for(parent)
@@ -981,6 +981,7 @@ fn show_add_note_window(parent: &gtk4::ApplicationWindow, state: AppState) {
         });
     }
 
+    on_build(&win);
     win.present();
     body_entry.grab_focus();
 }
