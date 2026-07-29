@@ -338,6 +338,7 @@ name = "breadman"
 version = "0.3.4"
 dependencies = [
  "anyhow",
+ "bread-screenshots",
  "breadpad-shared",
  "chrono",
  "dirs 5.0.1",
