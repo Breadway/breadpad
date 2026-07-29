@@ -13,6 +13,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 mod editor;
+mod screenshot;
 mod views;
 
 // ── Args ─────────────────────────────────────────────────────────────────────
@@ -23,6 +24,29 @@ mod args {
         pub view: Option<String>,
         pub done_id: Option<String>,
         pub upcoming_plain: bool,
+        pub screenshot: Option<String>,
+        pub output: Option<String>,
+        pub width: u32,
+        pub height: u32,
+    }
+
+    impl Args {
+        /// `None` for a normal run. Exits the process with an error if
+        /// `--screenshot` was given without `--output`, before any GTK
+        /// setup happens.
+        pub fn screenshot_request(&self) -> Option<crate::screenshot::ScreenshotRequest> {
+            let view = self.screenshot.clone()?;
+            let Some(output) = self.output.clone() else {
+                eprintln!("breadman: --screenshot requires --output");
+                std::process::exit(1);
+            };
+            Some(crate::screenshot::ScreenshotRequest {
+                view,
+                output: output.into(),
+                width: self.width,
+                height: self.height,
+            })
+        }
     }
 
     pub fn parse() -> Args {
@@ -30,6 +54,10 @@ mod args {
             view: None,
             done_id: None,
             upcoming_plain: false,
+            screenshot: None,
+            output: None,
+            width: 1920,
+            height: 1080,
         };
         let raw: Vec<String> = std::env::args().skip(1).collect();
         let mut i = 0;
@@ -49,6 +77,26 @@ mod args {
                         i += 1;
                     }
                     args.view = Some("upcoming".into());
+                }
+                "--screenshot" => {
+                    i += 1;
+                    args.screenshot = raw.get(i).cloned();
+                }
+                "--output" => {
+                    i += 1;
+                    args.output = raw.get(i).cloned();
+                }
+                "--width" => {
+                    i += 1;
+                    if let Some(v) = raw.get(i).and_then(|s| s.parse().ok()) {
+                        args.width = v;
+                    }
+                }
+                "--height" => {
+                    i += 1;
+                    if let Some(v) = raw.get(i).and_then(|s| s.parse().ok()) {
+                        args.height = v;
+                    }
                 }
                 _ => {}
             }
@@ -214,7 +262,9 @@ fn main() -> Result<()> {
         return cmd_upcoming_plain();
     }
 
-    run_app(args.view, cfg)
+    let screenshot_req = args.screenshot_request();
+    let view = screenshot_req.as_ref().map(|r| r.view.clone()).or(args.view);
+    run_app(view, cfg, screenshot_req)
 }
 
 fn cmd_done(id: &str) -> Result<()> {
@@ -250,10 +300,20 @@ fn cmd_upcoming_plain() -> Result<()> {
     Ok(())
 }
 
-fn run_app(initial_view: Option<String>, cfg: Config) -> Result<()> {
-    let app = gtk4::Application::builder()
-        .application_id("com.breadway.breadman")
-        .build();
+fn run_app(
+    initial_view: Option<String>,
+    cfg: Config,
+    screenshot_req: Option<screenshot::ScreenshotRequest>,
+) -> Result<()> {
+    let mut builder = gtk4::Application::builder().application_id("com.breadway.breadman");
+    if screenshot_req.is_some() {
+        // GApplication is single-instance by default; this machine typically
+        // already has a real breadman instance, so without this a
+        // screenshot run would activate the *existing* instance instead of
+        // starting a fresh one that ever sees `screenshot_req`.
+        builder = builder.flags(gtk4::gio::ApplicationFlags::NON_UNIQUE);
+    }
+    let app = builder.build();
 
     let cfg = Arc::new(cfg);
     let initial_view = Arc::new(initial_view);
@@ -261,7 +321,7 @@ fn run_app(initial_view: Option<String>, cfg: Config) -> Result<()> {
     app.connect_activate(move |app| {
         let cfg = cfg.as_ref().clone();
         let initial_view = initial_view.as_deref().map(|s| s.to_string());
-        if let Err(e) = build_app_window(app, cfg, initial_view) {
+        if let Err(e) = build_app_window(app, cfg, initial_view, screenshot_req.clone()) {
             tracing::error!("failed to build window: {}", e);
         }
     });
@@ -279,6 +339,7 @@ fn build_app_window(
     app: &gtk4::Application,
     cfg: Config,
     initial_view: Option<String>,
+    screenshot_req: Option<screenshot::ScreenshotRequest>,
 ) -> Result<()> {
     apply_css(&cfg);
 
@@ -464,6 +525,10 @@ fn build_app_window(
         }
     }
     stack.set_visible_child_name(initial);
+
+    if let Some(req) = screenshot_req {
+        screenshot::dispatch(&window, req);
+    }
 
     window.present();
     Ok(())
