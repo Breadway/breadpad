@@ -57,6 +57,15 @@ window { border-radius: 8px; }
     color: @on-accent;
 }
 
+/* Per-type tint, matching the note-card-{type} accent-bar colors below -
+   the flat cream badge was the same high-contrast fill for every type,
+   out-shouting note body text while telling you nothing extra. */
+.type-chip-todo     { background: alpha(@green, 0.18); color: @green; }
+.type-chip-reminder { background: alpha(@yellow, 0.18); color: @yellow; }
+.type-chip-idea     { background: alpha(@pink, 0.18); color: @pink; }
+.type-chip-question { background: alpha(@teal, 0.18); color: @teal; }
+.type-chip-note     { background: alpha(@blue, 0.18); color: @blue; }
+
 .confirm-button {
     background: @blue;
     color: @on-accent;
@@ -135,8 +144,12 @@ window { border-radius: 8px; }
 .edit-btn { color: @blue; }
 .edit-btn:hover { background: alpha(@blue, 0.15); }
 
-.danger-btn { color: @red; }
-.danger-btn:hover { background: alpha(@red, 0.15); }
+/* Fixed red, not @red - pywal can hand `red` any hue depending on the
+   wallpaper (see bread-theme's button.destructive-action for the same
+   reasoning), which would make delete indistinguishable from a normal
+   accent action. */
+.danger-btn { color: #e01b24; }
+.danger-btn:hover { background: alpha(#e01b24, 0.15); }
 
 .note-card-todo      { border-left-color: @green;  }
 .note-card-reminder  { border-left-color: @yellow; }

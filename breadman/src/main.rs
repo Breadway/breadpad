@@ -117,10 +117,11 @@ struct AppState {
     errors: Rc<RefCell<Vec<(chrono::DateTime<Local>, String)>>>,
     active_view: Rc<RefCell<String>>,
     stack: gtk4::Stack,
+    window: gtk4::ApplicationWindow,
 }
 
 impl AppState {
-    fn new(store: Arc<Store>, notes: Vec<Note>, cfg: Config, stack: gtk4::Stack) -> Self {
+    fn new(store: Arc<Store>, notes: Vec<Note>, cfg: Config, stack: gtk4::Stack, window: gtk4::ApplicationWindow) -> Self {
         AppState {
             store,
             notes: Rc::new(RefCell::new(notes)),
@@ -128,6 +129,7 @@ impl AppState {
             errors: Rc::new(RefCell::new(Vec::new())),
             active_view: Rc::new(RefCell::new("all".to_string())),
             stack,
+            window,
         }
     }
 
@@ -193,7 +195,7 @@ fn rebuild_all_view(notes: &[Note], state: &AppState) {
     if let Some(child) = state.stack.child_by_name("all") {
         state.stack.remove(&child);
     }
-    let scroll = build_note_list(notes, state.clone());
+    let scroll = build_note_list(notes, state.clone(), true, "No notes yet — jot something down to get started.", Some(NoteType::Note));
     state.stack.add_named(&scroll, Some("all"));
 }
 
@@ -207,14 +209,22 @@ fn rebuild_stack(state: &AppState) {
     let errors: Vec<_> = state.errors.borrow().clone();
 
     // All
-    let all_scroll = build_note_list(&notes, state.clone());
+    let all_scroll = build_note_list(&notes, state.clone(), true, "No notes yet — jot something down to get started.", Some(NoteType::Note));
     state.stack.add_named(&all_scroll, Some("all"));
 
     // Upcoming
-    let upcoming = views::upcoming::build(&notes);
+    let upcoming = views::upcoming::build(&notes, state.clone());
     state.stack.add_named(&upcoming, Some("upcoming"));
 
     // Per-type
+    let empty_text = |type_name: &str| match type_name {
+        "todo" => "No todos yet.",
+        "reminder" => "No reminders yet.",
+        "idea" => "No ideas captured yet.",
+        "note" => "No notes yet.",
+        "question" => "No open questions yet.",
+        _ => "Nothing here yet.",
+    };
     for type_name in NoteType::all_builtin() {
         let nt = NoteType::from_str(type_name);
         let filtered: Vec<Note> = notes
@@ -222,7 +232,7 @@ fn rebuild_stack(state: &AppState) {
             .filter(|n| n.note_type == nt && !n.done)
             .cloned()
             .collect();
-        let scroll = build_note_list(&filtered, state.clone());
+        let scroll = build_note_list(&filtered, state.clone(), false, empty_text(type_name), Some(nt));
         state.stack.add_named(&scroll, Some(type_name));
     }
 
@@ -396,7 +406,11 @@ fn build_app_window(
         ));
         row
     };
-    let make_item = |id: &str, icon: &str, label: &str| {
+    // One icon language throughout (was 8 full-colour emoji + 2 thin
+    // monochrome glyphs for Settings/Errors + a third style on row action
+    // buttons) — every sidebar entry and row action now uses a real GTK
+    // symbolic icon.
+    let make_item = |id: &str, icon_name: &str, label: &str| {
         let row = gtk4::ListBoxRow::builder()
             .css_classes(["sidebar-row"])
             .build();
@@ -405,13 +419,7 @@ fn build_app_window(
             .orientation(gtk4::Orientation::Horizontal)
             .spacing(10)
             .build();
-        hbox.append(
-            &gtk4::Label::builder()
-                .label(icon)
-                .width_chars(2)
-                .xalign(0.5)
-                .build(),
-        );
+        hbox.append(&gtk4::Image::builder().icon_name(icon_name).pixel_size(16).build());
         hbox.append(
             &gtk4::Label::builder()
                 .label(label)
@@ -424,18 +432,18 @@ fn build_app_window(
     };
 
     sidebar_list.append(&make_section("VIEWS"));
-    sidebar_list.append(&make_item("all", "📋", "All"));
-    sidebar_list.append(&make_item("upcoming", "📅", "Upcoming"));
+    sidebar_list.append(&make_item("all", "view-list-symbolic", "All"));
+    sidebar_list.append(&make_item("upcoming", "x-office-calendar-symbolic", "Upcoming"));
     sidebar_list.append(&make_section("TYPES"));
-    sidebar_list.append(&make_item("todo", "✅", "Todo"));
-    sidebar_list.append(&make_item("reminder", "🔔", "Reminder"));
-    sidebar_list.append(&make_item("idea", "💡", "Idea"));
-    sidebar_list.append(&make_item("note", "📝", "Note"));
-    sidebar_list.append(&make_item("question", "❓", "Question"));
+    sidebar_list.append(&make_item("todo", "task-due-symbolic", "Todo"));
+    sidebar_list.append(&make_item("reminder", "appointment-soon-symbolic", "Reminder"));
+    sidebar_list.append(&make_item("idea", "emblem-important-symbolic", "Idea"));
+    sidebar_list.append(&make_item("note", "text-x-generic-symbolic", "Note"));
+    sidebar_list.append(&make_item("question", "dialog-question-symbolic", "Question"));
     sidebar_list.append(&make_section("MORE"));
-    sidebar_list.append(&make_item("archive", "📦", "Archive"));
-    sidebar_list.append(&make_item("settings", "⚙", "Settings"));
-    sidebar_list.append(&make_item("errors", "⚠", "Errors"));
+    sidebar_list.append(&make_item("archive", "folder-symbolic", "Archive"));
+    sidebar_list.append(&make_item("settings", "preferences-system-symbolic", "Settings"));
+    sidebar_list.append(&make_item("errors", "dialog-warning-symbolic", "Errors"));
     sidebar_vbox.append(&sidebar_list);
 
     // ── Content area ──────────────────────────────────────────────
@@ -466,7 +474,7 @@ fn build_app_window(
     window.set_child(Some(&hbox));
 
     // ── AppState ──────────────────────────────────────────────────
-    let state = AppState::new(store, notes, cfg, stack.clone());
+    let state = AppState::new(store, notes, cfg, stack.clone(), window.clone());
 
     // Initial build
     rebuild_stack(&state);
@@ -474,11 +482,15 @@ fn build_app_window(
     // ── Sidebar selection ─────────────────────────────────────────
     {
         let state_c = state.clone();
+        let search_entry_c = search_entry.clone();
         sidebar_list.connect_row_selected(move |_, row| {
             if let Some(row) = row {
                 let view = row.widget_name().to_string();
                 if view.is_empty() { return; }
                 *state_c.active_view.borrow_mut() = view.clone();
+                // The search bar only means anything on note-list views —
+                // it used to render (uselessly) on Settings and Errors too.
+                search_entry_c.set_visible(!matches!(view.as_str(), "settings" | "errors"));
                 refresh(&state_c);
             }
         });
@@ -510,13 +522,14 @@ fn build_app_window(
         let state_c = state.clone();
         let window_c = window.clone();
         new_note_btn.connect_clicked(move |_| {
-            show_add_note_window(&window_c, state_c.clone(), |_| {});
+            show_add_note_window(&window_c, state_c.clone(), NoteType::Note, |_| {});
         });
     }
 
     // ── Select initial view ───────────────────────────────────────
     let initial = initial_view.as_deref().unwrap_or("all");
     *state.active_view.borrow_mut() = initial.to_string();
+    search_entry.set_visible(!matches!(initial, "settings" | "errors"));
     for row in sidebar_list
         .observe_children()
         .snapshot()
@@ -531,16 +544,27 @@ fn build_app_window(
     stack.set_visible_child_name(initial);
 
     if let Some(req) = screenshot_req {
-        screenshot::dispatch(&window, req, state.clone(), new_note_btn.clone());
+        screenshot::dispatch(&window, req, state.clone());
     }
 
     window.present();
     Ok(())
 }
 
-// ── Note list & cards ─────────────────────────────────────────────────────────
+// ── Note list ─────────────────────────────────────────────────────────────────
+// Row rendering itself lives in views::row (shared with Upcoming/Archive) —
+// design review found the old two-line card here wasted enormous horizontal
+// space (title and actions separated by ~800-1000px of dead middle) compared
+// to Archive's tighter single-line layout, so all list views now share one
+// row template.
 
-fn build_note_list(notes: &[Note], state: AppState) -> gtk4::ScrolledWindow {
+fn build_note_list(
+    notes: &[Note],
+    state: AppState,
+    show_type_badge: bool,
+    empty_text: &str,
+    empty_new_type: Option<NoteType>,
+) -> gtk4::ScrolledWindow {
     let scroll = gtk4::ScrolledWindow::builder()
         .hscrollbar_policy(gtk4::PolicyType::Never)
         .vscrollbar_policy(gtk4::PolicyType::Automatic)
@@ -549,26 +573,25 @@ fn build_note_list(notes: &[Note], state: AppState) -> gtk4::ScrolledWindow {
 
     let list = gtk4::Box::builder()
         .orientation(gtk4::Orientation::Vertical)
-        .spacing(8)
-        .margin_top(12)
-        .margin_bottom(12)
-        .margin_start(12)
-        .margin_end(12)
+        .spacing(4)
+        .margin_top(8)
+        .margin_bottom(8)
         .build();
 
     let mut sorted: Vec<Note> = notes.iter().filter(|n| !n.done).cloned().collect();
     sorted.sort_by(|a, b| b.created.cmp(&a.created));
 
     if sorted.is_empty() {
-        list.append(
-            &gtk4::Label::builder()
-                .label("No notes here yet.")
-                .margin_top(32)
-                .build(),
-        );
+        let action = empty_new_type.map(|nt| views::row::new_note_action(nt, state.window.clone(), state.clone()));
+        list.append(&views::row::build_empty_state("view-list-symbolic", empty_text, action));
     } else {
         for note in &sorted {
-            list.append(&build_note_card(note, state.clone()));
+            let created_str = {
+                let local: chrono::DateTime<Local> = note.created.into();
+                local.format("%b %d %H:%M").to_string()
+            };
+            let spec = views::row::RowSpec { date_label: created_str, note, show_type_badge, show_done: true };
+            list.append(&views::row::build(spec, state.clone()));
         }
     }
 
@@ -576,231 +599,9 @@ fn build_note_list(notes: &[Note], state: AppState) -> gtk4::ScrolledWindow {
     scroll
 }
 
-fn build_note_card(note: &Note, state: AppState) -> gtk4::Box {
-    let card = gtk4::Box::builder()
-        .orientation(gtk4::Orientation::Vertical)
-        .spacing(8)
-        .margin_start(0)
-        .margin_end(0)
-        .margin_top(0)
-        .margin_bottom(0)
-        .css_classes(["note-card"])
-        .build();
-    card.add_css_class(&format!("note-card-{}", note.note_type.as_str()));
-
-    // Top row: body + type chip
-    let top_row = gtk4::Box::builder()
-        .orientation(gtk4::Orientation::Horizontal)
-        .spacing(8)
-        .build();
-
-    let body_label = gtk4::Label::builder()
-        .label(&note.body)
-        .hexpand(true)
-        .xalign(0.0)
-        .wrap(true)
-        .build();
-
-    let type_chip = gtk4::Label::builder()
-        .label(note.note_type.as_str())
-        .css_classes(["type-chip"])
-        .build();
-
-    top_row.append(&body_label);
-    top_row.append(&type_chip);
-
-    // Bottom row: metadata + action buttons
-    let bottom_row = gtk4::Box::builder()
-        .orientation(gtk4::Orientation::Horizontal)
-        .spacing(8)
-        .build();
-
-    let created_str = {
-        let local: chrono::DateTime<Local> = note.created.into();
-        local.format("%b %d %H:%M").to_string()
-    };
-    let meta_label = gtk4::Label::builder()
-        .label(&created_str)
-        .css_classes(["dim-label"])
-        .xalign(0.0)
-        .build();
-
-    // Date first, then chips
-    bottom_row.append(&meta_label);
-    if let Some(ws) = &note.workspace {
-        bottom_row.append(
-            &gtk4::Label::builder()
-                .label(&format!("ws:{}", ws))
-                .css_classes(["type-chip"])
-                .build(),
-        );
-    }
-    if let Some(t) = note.time {
-        let local: chrono::DateTime<Local> = t.into();
-        bottom_row.append(
-            &gtk4::Label::builder()
-                .label(&local.format("⏰ %b %d %H:%M").to_string())
-                .css_classes(["dim-label"])
-                .build(),
-        );
-    }
-    if note.rrule.is_some() {
-        bottom_row.append(
-            &gtk4::Label::builder()
-                .label("↻")
-                .css_classes(["type-chip"])
-                .build(),
-        );
-    }
-
-    bottom_row.append(&gtk4::Box::builder().hexpand(true).build());
-
-    // ✓ Done button
-    let done_btn = gtk4::Button::builder()
-        .label("✓")
-        .css_classes(["action-btn", "done-btn"])
-        .tooltip_text("Mark done")
-        .build();
-    {
-        let note_id = note.id.clone();
-        let card_c = card.clone();
-        let state_c = state.clone();
-        done_btn.connect_clicked(move |_| {
-            card_c.set_visible(false); // optimistic hide
-            let store = state_c.write_store();
-            let id = note_id.clone();
-            let state = state_c.clone();
-            spawn_bg(
-                move || -> anyhow::Result<Vec<Note>> {
-                    if let Some(mut n) = store.get_by_id(&id)? {
-                        n.mark_done();
-                        store.update_note(&n)?;
-                    }
-                    store.load_all()
-                },
-                move |result| {
-                    match result {
-                        Ok(fresh) => {
-                            *state.notes.borrow_mut() = fresh;
-                            rebuild_stack(&state);
-                            let active = state.active_view.borrow().clone();
-                            state.stack.set_visible_child_name(&active);
-                        }
-                        Err(e) => state.log_error(format!("mark done failed: {}", e)),
-                    }
-                },
-            );
-        });
-    }
-    bottom_row.append(&done_btn);
-
-    // ✎ Edit button
-    let edit_btn = gtk4::Button::builder()
-        .label("✎")
-        .css_classes(["action-btn", "edit-btn"])
-        .tooltip_text("Edit")
-        .build();
-    {
-        let note_c = note.clone();
-        let state_c = state.clone();
-        let body_label_c = body_label.clone();
-        let card_c = card.clone();
-
-        edit_btn.connect_clicked(move |btn| {
-            let morning = state_c.cfg.borrow().reminders.default_morning.clone();
-            let store = Arc::new(state_c.write_store());
-
-            let state_save = state_c.clone();
-            let body_label_save = body_label_c.clone();
-            let state_del = state_c.clone();
-            let card_del = card_c.clone();
-            let state_err = state_c.clone();
-
-            let popover = editor::build_editor_popover(
-                &note_c,
-                store,
-                morning,
-                Rc::new(move |updated: Note| {
-                    body_label_save.set_label(&updated.body);
-                    state_save.reload_notes();
-                    rebuild_stack(&state_save);
-                    let active = state_save.active_view.borrow().clone();
-                    state_save.stack.set_visible_child_name(&active);
-                }),
-                Rc::new(move || {
-                    card_del.set_visible(false);
-                    state_del.reload_notes();
-                    rebuild_stack(&state_del);
-                    let active = state_del.active_view.borrow().clone();
-                    state_del.stack.set_visible_child_name(&active);
-                }),
-                Rc::new(move |e: String| {
-                    state_err.log_error(e);
-                }),
-            );
-            popover.set_parent(btn);
-            popover.popup();
-        });
-    }
-    bottom_row.append(&edit_btn);
-
-    // 🗑 Delete button — two-click confirm: first click → "Sure?", second → delete
-    let delete_btn = gtk4::Button::builder()
-        .label("🗑")
-        .css_classes(["action-btn", "danger-btn"])
-        .tooltip_text("Delete")
-        .build();
-    {
-        use std::cell::RefCell;
-        use std::rc::Rc;
-        let confirming = Rc::new(RefCell::new(false));
-        let note_id = note.id.clone();
-        let card_c = card.clone();
-        let state_c = state.clone();
-        let btn_c = delete_btn.clone();
-
-        delete_btn.connect_clicked(move |_| {
-            if *confirming.borrow() {
-                card_c.set_visible(false); // optimistic hide
-                let store = state_c.write_store();
-                let id = note_id.clone();
-                let state = state_c.clone();
-                spawn_bg(
-                    move || -> anyhow::Result<Vec<Note>> {
-                        store.delete_note(&id)?;
-                        if let Err(e) = Scheduler::cancel(&id) {
-                            tracing::warn!("failed to cancel timer for {}: {}", id, e);
-                        }
-                        store.load_all()
-                    },
-                    move |result| {
-                        match result {
-                            Ok(fresh) => {
-                                *state.notes.borrow_mut() = fresh;
-                                rebuild_stack(&state);
-                                let active = state.active_view.borrow().clone();
-                                state.stack.set_visible_child_name(&active);
-                            }
-                            Err(e) => state.log_error(format!("delete failed: {}", e)),
-                        }
-                    },
-                );
-            } else {
-                *confirming.borrow_mut() = true;
-                btn_c.set_label("Sure?");
-            }
-        });
-    }
-    bottom_row.append(&delete_btn);
-
-    card.append(&top_row);
-    card.append(&bottom_row);
-    card
-}
-
 // ── Add note window ───────────────────────────────────────────────────────────
 
-fn show_add_note_window(parent: &gtk4::ApplicationWindow, state: AppState, on_build: impl FnOnce(&gtk4::Window)) {
+fn show_add_note_window(parent: &gtk4::ApplicationWindow, state: AppState, preselect: NoteType, on_build: impl FnOnce(&gtk4::Window)) {
     let win = gtk4::Window::builder()
         .title("New Note")
         .transient_for(parent)
@@ -824,48 +625,43 @@ fn show_add_note_window(parent: &gtk4::ApplicationWindow, state: AppState, on_bu
         .build();
     vbox.append(&body_entry);
 
-    // Type chips
+    // Type pills — same bread_theme::gtk::chip widget the editor dialog and
+    // settings screen use, instead of three different type-picker widgets
+    // across the app.
+    vbox.append(&gtk4::Label::builder().label("Type").xalign(0.0).build());
     let chip_box = gtk4::Box::builder()
         .orientation(gtk4::Orientation::Horizontal)
         .spacing(4)
         .build();
-    let selected_type: Rc<RefCell<NoteType>> = Rc::new(RefCell::new(NoteType::Note));
+    let selected_type: Rc<RefCell<NoteType>> = Rc::new(RefCell::new(preselect.clone()));
     let chips: Vec<(gtk4::Button, NoteType)> = NoteType::all_builtin()
         .iter()
-        .map(|&name| {
-            let btn = gtk4::Button::builder()
-                .label(name)
-                .css_classes(["type-chip"])
-                .build();
-            (btn, NoteType::from_str(name))
-        })
+        .map(|&name| (bread_theme::gtk::chip(name), NoteType::from_str(name)))
         .collect();
     for (btn, nt) in &chips {
+        bread_theme::gtk::set_chip_active(btn, *nt == preselect);
         let sel = selected_type.clone();
         let nt_c = nt.clone();
         let all_btns: Vec<gtk4::Button> = chips.iter().map(|(b, _)| b.clone()).collect();
         btn.connect_clicked(move |clicked| {
             *sel.borrow_mut() = nt_c.clone();
-            for b in &all_btns { b.remove_css_class("active"); }
-            clicked.add_css_class("active");
+            for b in &all_btns { bread_theme::gtk::set_chip_active(b, false); }
+            bread_theme::gtk::set_chip_active(clicked, true);
         });
         chip_box.append(btn);
-    }
-    if let Some((btn, _)) = chips.iter().find(|(_, nt)| *nt == NoteType::Note) {
-        btn.add_css_class("active");
     }
     vbox.append(&chip_box);
 
     vbox.append(&gtk4::Label::builder().label("Time (optional)").xalign(0.0).build());
     let time_entry = gtk4::Entry::builder()
-        .placeholder_text("tomorrow 9am  /  at 7pm  /  in 30 minutes")
+        .placeholder_text(editor::TIME_PLACEHOLDER)
         .hexpand(true)
         .build();
     vbox.append(&time_entry);
 
     vbox.append(&gtk4::Label::builder().label("Recurrence (optional)").xalign(0.0).build());
     let rrule_entry = gtk4::Entry::builder()
-        .placeholder_text("RRULE:FREQ=WEEKLY;BYDAY=MO")
+        .placeholder_text(editor::RRULE_PLACEHOLDER)
         .hexpand(true)
         .build();
     vbox.append(&rrule_entry);
