@@ -3,6 +3,7 @@ use breadpad_shared::{
     calendar::CalDavClient,
     classifier::Classifier,
     config::Config,
+    parser::parse_rule_based,
     scheduler::Scheduler,
     store::Store,
     types::{Note, NoteType},
@@ -492,14 +493,15 @@ fn build_reminder_window(
         .orientation(gtk4::Orientation::Horizontal)
         .build());
 
-    // Button row
+    // Button row — same inset as the header/body zone above (20px), which
+    // used to be 16px here, visible as a step across the divider.
     let btn_row = gtk4::Box::builder()
         .orientation(gtk4::Orientation::Horizontal)
         .spacing(8)
         .margin_top(12)
         .margin_bottom(12)
-        .margin_start(16)
-        .margin_end(16)
+        .margin_start(20)
+        .margin_end(20)
         .build();
 
     let dismiss_btn = gtk4::Button::builder()
@@ -507,23 +509,35 @@ fn build_reminder_window(
         .css_classes(["reminder-dismiss"])
         .build();
 
-    // Snooze popover
+    // Snooze popover. No arrow and a matching flat border (see
+    // popover.snooze-popover in the shared theme) so it reads as the same
+    // elevation language as the reminder card, instead of GTK's default
+    // arrow+drop-shadow chrome next to the card's flat 1px border.
     let snooze_popover = gtk4::Popover::new();
+    snooze_popover.set_has_arrow(false);
+    snooze_popover.add_css_class("snooze-popover");
     let snooze_vbox = gtk4::Box::builder()
         .orientation(gtk4::Orientation::Vertical)
-        .spacing(4)
-        .margin_top(8)
-        .margin_bottom(8)
-        .margin_start(8)
-        .margin_end(8)
+        .spacing(0)
+        .margin_top(4)
+        .margin_bottom(4)
         .build();
+
+    // Left-aligned row: a bare Button::builder().label() centers its text,
+    // so each option gets an explicit xalign(0.0) label as its child and
+    // hexpand(true) so the row fills the popover's full width instead of
+    // shrinking to the longest label.
+    let snooze_option_row = |label: &str| {
+        gtk4::Button::builder()
+            .child(&gtk4::Label::builder().label(label).xalign(0.0).build())
+            .css_classes(["snooze-option"])
+            .hexpand(true)
+            .build()
+    };
 
     for opt in &cfg.settings.snooze_options {
         let label = humanize_snooze(opt).to_string();
-        let btn = gtk4::Button::builder()
-            .label(&label)
-            .css_classes(["snooze-option"])
-            .build();
+        let btn = snooze_option_row(&label);
         let key = opt.clone();
         let note_c = note.clone();
         let cfg_c = cfg.clone();
@@ -543,6 +557,47 @@ fn build_reminder_window(
         });
         snooze_vbox.append(&btn);
     }
+
+    // Custom… — reuses the same free-form time parsing breadman's dialogs
+    // already use, rather than inventing a separate time-picker widget.
+    let custom_entry = gtk4::Entry::builder()
+        .placeholder_text("tomorrow 9am  /  in 45 minutes")
+        .css_classes(["snooze-custom-entry"])
+        .visible(false)
+        .build();
+    {
+        let note_c = note.clone();
+        let cfg_c = cfg.clone();
+        let win_c = window.clone();
+        let popover_c = snooze_popover.clone();
+        let entry_c = custom_entry.clone();
+        custom_entry.connect_activate(move |_| {
+            let text = entry_c.text().to_string();
+            let parsed = parse_rule_based(&text, &cfg_c.reminders.default_morning);
+            if let Some(until) = parsed.time {
+                if let Ok(store) = Store::new().map(|s| s.with_calendar_if_enabled(&cfg_c)) {
+                    let mut updated = note_c.as_ref().clone();
+                    updated.snoozed_until = Some(until);
+                    let _ = store.update_note(&updated);
+                    let _ = Scheduler::schedule(&updated);
+                }
+                popover_c.popdown();
+                win_c.close();
+            }
+        });
+    }
+    let custom_btn = snooze_option_row("Custom\u{2026}");
+    {
+        let custom_entry_c = custom_entry.clone();
+        custom_btn.connect_clicked(move |btn| {
+            btn.set_visible(false);
+            custom_entry_c.set_visible(true);
+            custom_entry_c.grab_focus();
+        });
+    }
+    snooze_vbox.append(&custom_btn);
+    snooze_vbox.append(&custom_entry);
+
     snooze_popover.set_child(Some(&snooze_vbox));
 
     let snooze_btn = gtk4::MenuButton::builder()
@@ -735,10 +790,13 @@ fn build_window(
         }
     }
 
-    // Confirm button
-    let confirm_btn = gtk4::Button::builder()
-        .label("✓")
-        .css_classes(["confirm-button"])
+    // No submit button — this popup is keyboard-driven (grabs focus on
+    // open, Escape closes it) and a bare accent-teal checkmark used to sit
+    // next to the selected-type pill in the same accent teal, carrying two
+    // different meanings in one colour. A hint is enough.
+    let enter_hint = gtk4::Label::builder()
+        .label("Press Enter to add")
+        .css_classes(["dim-label"])
         .build();
 
     let bottom_row = gtk4::Box::builder()
@@ -749,7 +807,7 @@ fn build_window(
 
     let spacer = gtk4::Box::builder().hexpand(true).build();
     bottom_row.append(&spacer);
-    bottom_row.append(&confirm_btn);
+    bottom_row.append(&enter_hint);
 
     vbox.append(&entry);
     vbox.append(&bottom_row);
@@ -784,12 +842,6 @@ fn build_window(
             });
         }
     };
-
-    // Confirm button click
-    {
-        let save = save_and_close.clone();
-        confirm_btn.connect_clicked(move |_| save());
-    }
 
     // Entry activate (Enter key)
     {

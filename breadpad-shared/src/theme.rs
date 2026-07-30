@@ -33,7 +33,7 @@ window { border-radius: 8px; }
     color: @fg;
     border: 2px solid @blue;
     border-radius: 6px;
-    padding: 12px 16px;
+    padding: 14px;
     font-size: 14px;
     caret-color: @fg;
 }
@@ -183,12 +183,15 @@ window { border-radius: 8px; }
     color: @fg;
 }
 
+/* Dismiss and Snooze are both secondary/outline actions and should read at
+   equal weight - Dismiss used to sit at 0.6 alpha next to Snooze's full
+   opacity, which made the button that closes the reminder look disabled. */
 .reminder-dismiss {
     background: transparent;
     border: 1px solid @overlay;
     border-radius: 8px;
     padding: 8px 16px;
-    color: alpha(@fg, 0.6);
+    color: @fg;
 }
 
 .reminder-dismiss:hover { background: shade(@bg, 1.1); }
@@ -203,15 +206,40 @@ window { border-radius: 8px; }
 
 .reminder-snooze:hover { background: shade(@bg, 1.1); }
 
+/* Left-aligned (the button's child label sets xalign itself), full-width
+   row with a hairline divider so the list reads as distinct clickable rows
+   even before hover - a hover tint alone doesn't show up in a static
+   reading of the popover's default state. */
 .snooze-option {
     background: transparent;
     border: none;
     border-radius: 6px;
-    padding: 8px 12px;
+    padding: 10px 12px;
     color: @fg;
+    border-bottom: 1px solid alpha(@overlay, 0.15);
 }
 
 .snooze-option:hover { background: shade(@bg, 1.2); }
+
+.snooze-custom-entry {
+    background: @bg;
+    color: @fg;
+    border: 1px solid @overlay;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin: 4px;
+}
+
+.snooze-custom-entry:focus-within { border-color: @blue; outline: none; }
+
+/* Matches the reminder alert card's flat-bordered elevation (1px border,
+   8px radius, no shadow) instead of GTK's default arrow+drop-shadow popover
+   chrome - the two surfaces used to speak two different elevation
+   languages. */
+popover.snooze-popover > contents {
+    border: 1px solid @overlay;
+    box-shadow: none;
+}
 "#);
 
     if let Some(extra) = user_css {
