@@ -342,6 +342,10 @@ fn build_app_window(
     screenshot_req: Option<screenshot::ScreenshotRequest>,
 ) -> Result<()> {
     apply_css(&cfg);
+    // Needed once before constructing any adw:: widget (see views::settings) —
+    // also forces dark mode, since bread-theme's palette is a fixed dark base
+    // regardless of the system GTK preference.
+    bread_theme::adw::init();
 
     let store = Arc::new(Store::new()?);
     let notes = store.load_all()?;
