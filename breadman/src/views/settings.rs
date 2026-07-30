@@ -1,7 +1,9 @@
 use breadpad_shared::config::{
     CalendarConfig, Config, ModelConfig, OllamaConfig, RemindersConfig, Settings,
 };
+use bread_theme::adw;
 use gtk4::prelude::*;
+use libadwaita::prelude::*;
 
 pub fn build(cfg: &Config, on_save: impl Fn(Config) + 'static) -> gtk4::ScrolledWindow {
     let scroll = gtk4::ScrolledWindow::builder()
@@ -10,139 +12,148 @@ pub fn build(cfg: &Config, on_save: impl Fn(Config) + 'static) -> gtk4::Scrolled
         .vexpand(true)
         .build();
 
-    let outer = gtk4::Box::builder()
-        .orientation(gtk4::Orientation::Vertical)
-        .spacing(16)
-        .margin_top(16)
-        .margin_bottom(16)
-        .margin_start(16)
-        .margin_end(16)
-        .build();
+    let page = libadwaita::PreferencesPage::new();
 
     // ── General ──────────────────────────────────────────────────
-    let (general_frame, general_grid) = make_section("General");
+    let general_group = adw::preferences_group("General", None);
 
     let type_options = ["note", "todo", "reminder", "idea", "question"];
-    let default_type_combo = gtk4::DropDown::from_strings(&type_options);
+    let default_type_row = libadwaita::ComboRow::builder()
+        .title("Default type")
+        .model(&gtk4::StringList::new(&type_options))
+        .build();
     let dt_idx = type_options
         .iter()
         .position(|&s| s == cfg.settings.default_type.as_str())
         .unwrap_or(0) as u32;
-    default_type_combo.set_selected(dt_idx);
-    attach_row(&general_grid, 0, "Default type", &default_type_combo);
+    default_type_row.set_selected(dt_idx);
+    general_group.add(&default_type_row);
 
-    let ws_tag_switch = gtk4::Switch::builder()
-        .active(cfg.settings.workspace_tag)
+    let ws_tag_row = adw::toggle_row(
+        "Workspace tag",
+        Some("Tag new notes with the Hyprland workspace they were created on"),
+        cfg.settings.workspace_tag,
+    );
+    general_group.add(&ws_tag_row);
+
+    let archive_adj = gtk4::Adjustment::new(cfg.settings.archive_after_days as f64, 1.0, 365.0, 1.0, 7.0, 0.0);
+    let archive_row = adw::spin_row("Archive after (days)", None, &archive_adj);
+    general_group.add(&archive_row);
+
+    let snooze_row = adw::action_row("Snooze options", Some("Comma-separated (e.g. 15m, 1h, tomorrow_morning)"));
+    let snooze_entry = gtk4::Entry::builder()
+        .text(cfg.settings.snooze_options.join(", "))
         .valign(gtk4::Align::Center)
         .build();
-    attach_row(&general_grid, 1, "Workspace tag", &ws_tag_switch);
+    snooze_row.add_suffix(&snooze_entry);
+    general_group.add(&snooze_row);
 
-    let archive_spin = gtk4::SpinButton::with_range(1.0, 365.0, 1.0);
-    archive_spin.set_value(cfg.settings.archive_after_days as f64);
-    attach_row(&general_grid, 2, "Archive after (days)", &archive_spin);
-
-    let snooze_entry = gtk4::Entry::builder()
-        .text(&cfg.settings.snooze_options.join(", "))
-        .hexpand(true)
-        .build();
-    attach_row(&general_grid, 3, "Snooze options", &snooze_entry);
-
-    outer.append(&general_frame);
+    page.add(&general_group);
 
     // ── Reminders ────────────────────────────────────────────────
-    let (rem_frame, rem_grid) = make_section("Reminders");
+    let rem_group = adw::preferences_group("Reminders", None);
 
+    let morning_row = adw::action_row("Default morning", Some("Used for \"tomorrow_morning\" snoozes and recurring reminders"));
     let morning_entry = gtk4::Entry::builder()
         .text(&cfg.reminders.default_morning)
         .placeholder_text("HH:MM")
-        .build();
-    attach_row(&rem_grid, 0, "Default morning", &morning_entry);
-
-    let grace_spin = gtk4::SpinButton::with_range(0.0, 1440.0, 5.0);
-    grace_spin.set_value(cfg.reminders.missed_grace_minutes as f64);
-    attach_row(&rem_grid, 1, "Missed grace (minutes)", &grace_spin);
-
-    outer.append(&rem_frame);
-
-    // ── Model ─────────────────────────────────────────────────────
-    let (model_frame, model_grid) = make_section("Model (Tier 2 ONNX)");
-
-    let model_path_entry = gtk4::Entry::builder()
-        .text(&cfg.model.path)
-        .hexpand(true)
-        .build();
-    attach_row(&model_grid, 0, "ONNX path", &model_path_entry);
-
-    let tokenizer_entry = gtk4::Entry::builder()
-        .text(&cfg.model.tokenizer)
-        .hexpand(true)
-        .build();
-    attach_row(&model_grid, 1, "Tokenizer path", &tokenizer_entry);
-
-    let ort_dylib_entry = gtk4::Entry::builder()
-        .text(&cfg.model.ort_dylib_path)
-        .hexpand(true)
-        .build();
-    attach_row(&model_grid, 2, "ORT dylib path", &ort_dylib_entry);
-
-    outer.append(&model_frame);
-
-    // ── Ollama (Tier 3) ───────────────────────────────────────────
-    let (ollama_frame, ollama_grid) = make_section("Ollama (Tier 3)");
-
-    let ollama_enabled = gtk4::Switch::builder()
-        .active(cfg.model.ollama.enabled)
         .valign(gtk4::Align::Center)
         .build();
-    attach_row(&ollama_grid, 0, "Enabled", &ollama_enabled);
+    morning_row.add_suffix(&morning_entry);
+    rem_group.add(&morning_row);
 
-    let ollama_endpoint = gtk4::Entry::builder()
-        .text(&cfg.model.ollama.endpoint)
-        .hexpand(true)
-        .build();
-    attach_row(&ollama_grid, 1, "Endpoint", &ollama_endpoint);
+    let grace_adj = gtk4::Adjustment::new(cfg.reminders.missed_grace_minutes as f64, 0.0, 1440.0, 5.0, 30.0, 0.0);
+    let grace_row = adw::spin_row("Missed grace (minutes)", Some("How late a reminder can fire before it's considered missed"), &grace_adj);
+    rem_group.add(&grace_row);
 
-    let ollama_model = gtk4::Entry::builder()
-        .text(&cfg.model.ollama.model)
-        .build();
-    attach_row(&ollama_grid, 2, "Model", &ollama_model);
+    page.add(&rem_group);
 
-    let ollama_thresh = gtk4::SpinButton::with_range(0.0, 1.0, 0.05);
-    ollama_thresh.set_value(cfg.model.ollama.confidence_threshold as f64);
-    ollama_thresh.set_digits(2);
-    attach_row(&ollama_grid, 3, "Confidence threshold", &ollama_thresh);
+    // ── Local classifier ───────────────────────────────────────────
+    let model_group = adw::preferences_group(
+        "Local Classifier",
+        Some("Optional local ONNX model for classifying note type/time without a network round-trip."),
+    );
 
-    outer.append(&ollama_frame);
+    let model_path_row = adw::action_row("Model path", None);
+    let model_path_entry = gtk4::Entry::builder().text(&cfg.model.path).hexpand(true).width_chars(36).valign(gtk4::Align::Center).build();
+    model_path_row.add_suffix(&model_path_entry);
+    model_group.add(&model_path_row);
 
-    // ── Calendar ─────────────────────────────────────────────────
-    let (cal_frame, cal_grid) = make_section("Nextcloud Calendar (CalDAV)");
+    let tokenizer_row = adw::action_row("Tokenizer path", None);
+    let tokenizer_entry = gtk4::Entry::builder().text(&cfg.model.tokenizer).hexpand(true).width_chars(36).valign(gtk4::Align::Center).build();
+    tokenizer_row.add_suffix(&tokenizer_entry);
+    model_group.add(&tokenizer_row);
 
-    let cal_enabled = gtk4::Switch::builder()
-        .active(cfg.calendar.enabled)
-        .valign(gtk4::Align::Center)
-        .build();
-    attach_row(&cal_grid, 0, "Enabled", &cal_enabled);
+    let ort_dylib_row = adw::action_row("Runtime library path", None);
+    let ort_dylib_entry = gtk4::Entry::builder().text(&cfg.model.ort_dylib_path).hexpand(true).width_chars(36).valign(gtk4::Align::Center).build();
+    ort_dylib_row.add_suffix(&ort_dylib_entry);
+    model_group.add(&ort_dylib_row);
 
+    page.add(&model_group);
+
+    // ── AI classification (Ollama) ──────────────────────────────────
+    let ollama_group = adw::preferences_group(
+        "AI Classification",
+        Some("Uses a local Ollama model as a fallback classifier when the ONNX model is unavailable or unsure."),
+    );
+
+    let ollama_enabled_row = adw::toggle_row("Enabled", None, cfg.model.ollama.enabled);
+    ollama_group.add(&ollama_enabled_row);
+
+    let ollama_endpoint_row = adw::action_row("Endpoint", None);
+    let ollama_endpoint_entry = gtk4::Entry::builder().text(&cfg.model.ollama.endpoint).hexpand(true).width_chars(36).valign(gtk4::Align::Center).build();
+    ollama_endpoint_row.add_suffix(&ollama_endpoint_entry);
+    ollama_group.add(&ollama_endpoint_row);
+
+    let ollama_model_row = adw::action_row("Model", None);
+    let ollama_model_entry = gtk4::Entry::builder().text(&cfg.model.ollama.model).valign(gtk4::Align::Center).build();
+    ollama_model_row.add_suffix(&ollama_model_entry);
+    ollama_group.add(&ollama_model_row);
+
+    let ollama_thresh_adj = gtk4::Adjustment::new(cfg.model.ollama.confidence_threshold as f64, 0.0, 1.0, 0.05, 0.1, 0.0);
+    let ollama_thresh_row = adw::spin_row("Confidence threshold", None, &ollama_thresh_adj);
+    if let Some(spin) = ollama_thresh_row.first_child().and_downcast::<gtk4::SpinButton>() {
+        spin.set_digits(2);
+    }
+    ollama_group.add(&ollama_thresh_row);
+
+    page.add(&ollama_group);
+
+    // ── Calendar sync ────────────────────────────────────────────
+    let cal_group = adw::preferences_group(
+        "Calendar Sync",
+        Some("Sync reminders to a Nextcloud calendar via CalDAV."),
+    );
+
+    let cal_enabled_row = adw::toggle_row("Enabled", None, cfg.calendar.enabled);
+    cal_group.add(&cal_enabled_row);
+
+    let cal_url_row = adw::action_row("Calendar URL", None);
     let cal_url = gtk4::Entry::builder()
         .text(&cfg.calendar.url)
         .placeholder_text("https://nextcloud.example.com/remote.php/dav/calendars/you/personal/")
         .hexpand(true)
+        .width_chars(36)
+        .valign(gtk4::Align::Center)
         .build();
-    attach_row(&cal_grid, 1, "Calendar URL", &cal_url);
+    cal_url_row.add_suffix(&cal_url);
+    cal_group.add(&cal_url_row);
 
-    let cal_user = gtk4::Entry::builder()
-        .text(&cfg.calendar.username)
-        .build();
-    attach_row(&cal_grid, 2, "Username", &cal_user);
+    let cal_user_row = adw::action_row("Username", None);
+    let cal_user = gtk4::Entry::builder().text(&cfg.calendar.username).valign(gtk4::Align::Center).build();
+    cal_user_row.add_suffix(&cal_user);
+    cal_group.add(&cal_user_row);
 
-    let cal_pass = gtk4::Entry::builder()
+    let cal_pass_row = adw::action_row("App password", None);
+    let cal_pass = gtk4::PasswordEntry::builder()
         .text(&cfg.calendar.password)
-        .input_purpose(gtk4::InputPurpose::Password)
-        .visibility(false)
+        .show_peek_icon(true)
+        .valign(gtk4::Align::Center)
         .build();
-    attach_row(&cal_grid, 3, "App password", &cal_pass);
+    cal_pass_row.add_suffix(&cal_pass);
+    cal_group.add(&cal_pass_row);
 
-    outer.append(&cal_frame);
+    page.add(&cal_group);
 
     // ── Save ──────────────────────────────────────────────────────
     let status_label = gtk4::Label::builder()
@@ -157,20 +168,20 @@ pub fn build(cfg: &Config, on_save: impl Fn(Config) + 'static) -> gtk4::Scrolled
         .build();
 
     {
-        let dtc = default_type_combo.clone();
-        let wts = ws_tag_switch.clone();
-        let ars = archive_spin.clone();
+        let dtc = default_type_row.clone();
+        let wts = ws_tag_row.clone();
+        let ars = archive_adj.clone();
         let sne = snooze_entry.clone();
         let moe = morning_entry.clone();
-        let grs = grace_spin.clone();
+        let grs = grace_adj.clone();
         let mpe = model_path_entry.clone();
         let tke = tokenizer_entry.clone();
         let ode = ort_dylib_entry.clone();
-        let oec = ollama_enabled.clone();
-        let oee = ollama_endpoint.clone();
-        let ome = ollama_model.clone();
-        let ots = ollama_thresh.clone();
-        let cec = cal_enabled.clone();
+        let oec = ollama_enabled_row.clone();
+        let oee = ollama_endpoint_entry.clone();
+        let ome = ollama_model_entry.clone();
+        let ots = ollama_thresh_adj.clone();
+        let cec = cal_enabled_row.clone();
         let cuc = cal_url.clone();
         let csc = cal_user.clone();
         let cpc = cal_pass.clone();
@@ -228,37 +239,19 @@ pub fn build(cfg: &Config, on_save: impl Fn(Config) + 'static) -> gtk4::Scrolled
     let btn_row = gtk4::Box::builder()
         .orientation(gtk4::Orientation::Horizontal)
         .spacing(8)
+        .margin_top(16)
+        .margin_start(16)
+        .margin_end(16)
+        .margin_bottom(16)
         .build();
     btn_row.append(&status_label);
     btn_row.append(&gtk4::Box::builder().hexpand(true).build());
     btn_row.append(&save_btn);
+
+    let outer = gtk4::Box::builder().orientation(gtk4::Orientation::Vertical).build();
+    outer.append(&page);
     outer.append(&btn_row);
 
     scroll.set_child(Some(&outer));
     scroll
-}
-
-fn make_section(title: &str) -> (gtk4::Frame, gtk4::Grid) {
-    let frame = gtk4::Frame::builder().label(title).build();
-    let grid = gtk4::Grid::builder()
-        .row_spacing(8)
-        .column_spacing(16)
-        .margin_top(8)
-        .margin_bottom(8)
-        .margin_start(8)
-        .margin_end(8)
-        .build();
-    frame.set_child(Some(&grid));
-    (frame, grid)
-}
-
-fn attach_row(grid: &gtk4::Grid, row: i32, label: &str, widget: &impl gtk4::prelude::IsA<gtk4::Widget>) {
-    let lbl = gtk4::Label::builder()
-        .label(label)
-        .xalign(0.0)
-        .hexpand(false)
-        .width_chars(24)
-        .build();
-    grid.attach(&lbl, 0, row, 1, 1);
-    grid.attach(widget, 1, row, 1, 1);
 }
