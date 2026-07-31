@@ -1,3 +1,9 @@
+//! Note editor, presented as an AdwDialog (was a bare GtkPopover with no
+//! scrim, no title, anchored wherever the triggering button happened to be -
+//! flagged in design review as the weakest surface in the app). AdwDialog
+//! gives us the scrim, the title, and correct modal anchoring for free.
+
+use bread_theme::adw;
 use breadpad_shared::{
     parser::parse_rule_based,
     scheduler::Scheduler,
@@ -6,48 +12,73 @@ use breadpad_shared::{
 };
 use chrono::{Local, TimeZone, Utc};
 use gtk4::{glib, prelude::*};
+use libadwaita::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
-pub fn build_editor_popover(
+/// Same wording used by `main::show_add_note_window`'s New Note dialog - the
+/// two surfaces used to teach the user two different input languages for
+/// the same fields.
+pub const TIME_PLACEHOLDER: &str = "tomorrow 9am  /  at 7pm  /  2026-08-01 09:00";
+pub const RRULE_PLACEHOLDER: &str = "RRULE:FREQ=WEEKLY;BYDAY=MO";
+
+/// Builds the dialog but does not present it - callers that need to hook
+/// its `map` signal (screenshot mode) must connect before presenting or
+/// they miss the signal entirely; interactive callers present immediately
+/// with `dialog.present(Some(parent))`.
+pub fn open_editor(
     note: &Note,
     store: Arc<Store>,
     morning: String,
     on_save: Rc<dyn Fn(Note)>,
     on_delete: Rc<dyn Fn()>,
     on_error: Rc<dyn Fn(String)>,
-) -> gtk4::Popover {
-    let popover = gtk4::Popover::new();
-    popover.set_has_arrow(false);
+) -> libadwaita::Dialog {
+    let dialog = libadwaita::Dialog::builder()
+        .title("Edit Note")
+        .content_width(480)
+        .content_height(520)
+        .build();
 
-    let vbox = gtk4::Box::builder()
+    let header = libadwaita::HeaderBar::new();
+    let toolbar_view = libadwaita::ToolbarView::new();
+    toolbar_view.add_top_bar(&header);
+
+    let content = gtk4::Box::builder()
         .orientation(gtk4::Orientation::Vertical)
-        .spacing(8)
-        .margin_top(12)
-        .margin_bottom(12)
-        .margin_start(12)
-        .margin_end(12)
-        .width_request(420)
+        .spacing(16)
+        .margin_top(16)
+        .margin_bottom(16)
+        .margin_start(16)
+        .margin_end(16)
         .build();
 
-    vbox.append(&gtk4::Label::builder().label("Body").xalign(0.0).build());
-    let body_entry = gtk4::Entry::builder()
-        .text(&note.body)
-        .hexpand(true)
-        .build();
-    vbox.append(&body_entry);
+    let group = adw::preferences_group("Details", None);
 
-    vbox.append(&gtk4::Label::builder().label("Type").xalign(0.0).build());
-    let type_combo = gtk4::DropDown::from_strings(NoteType::all_builtin());
-    let current_idx = NoteType::all_builtin()
-        .iter()
-        .position(|&s| s == note.note_type.as_str())
-        .unwrap_or(3) as u32;
-    type_combo.set_selected(current_idx);
-    vbox.append(&type_combo);
+    let body_row = libadwaita::EntryRow::builder().title("Body").build();
+    body_row.set_text(&note.body);
+    group.add(&body_row);
 
-    vbox.append(&gtk4::Label::builder().label("Time").xalign(0.0).build());
+    let type_row = adw::action_row("Type", None);
+    let type_pill_box = gtk4::Box::builder().orientation(gtk4::Orientation::Horizontal).spacing(4).valign(gtk4::Align::Center).build();
+    let selected_type: Rc<RefCell<String>> = Rc::new(RefCell::new(note.note_type.as_str().to_string()));
+    let type_pills: Vec<(gtk4::Button, &'static str)> = NoteType::all_builtin().iter().map(|&name| (bread_theme::gtk::chip(name), name)).collect();
+    for (btn, name) in &type_pills {
+        bread_theme::gtk::set_chip_active(btn, *name == selected_type.borrow().as_str());
+        let sel = selected_type.clone();
+        let name = *name;
+        let all_btns: Vec<gtk4::Button> = type_pills.iter().map(|(b, _)| b.clone()).collect();
+        btn.connect_clicked(move |clicked| {
+            *sel.borrow_mut() = name.to_string();
+            for b in &all_btns { bread_theme::gtk::set_chip_active(b, false); }
+            bread_theme::gtk::set_chip_active(clicked, true);
+        });
+        type_pill_box.append(btn);
+    }
+    type_row.add_suffix(&type_pill_box);
+    group.add(&type_row);
+
     let time_text = note
         .time
         .map(|t| {
@@ -55,38 +86,44 @@ pub fn build_editor_popover(
             local.format("%Y-%m-%d %H:%M").to_string()
         })
         .unwrap_or_default();
-    let time_entry = gtk4::Entry::builder()
-        .text(&time_text)
-        .placeholder_text("YYYY-MM-DD HH:MM  or  tomorrow 9am  (blank = no time)")
-        .hexpand(true)
-        .build();
-    vbox.append(&time_entry);
+    let time_row = libadwaita::EntryRow::builder().title("Time").build();
+    time_row.set_text(&time_text);
+    // EntryRow has no placeholder-text property of its own (unlike GtkEntry) -
+    // the title already communicates the field, so the example format goes in
+    // the group description instead of a placeholder that would otherwise
+    // vanish behind the title when empty.
+    group.add(&time_row);
 
-    vbox.append(&gtk4::Label::builder().label("Recurrence").xalign(0.0).build());
-    let rrule_entry = gtk4::Entry::builder()
-        .text(note.rrule.as_ref().map(|r| r.as_str()).unwrap_or(""))
-        .placeholder_text("RRULE:FREQ=WEEKLY;BYDAY=MO  (blank = none)")
-        .build();
-    vbox.append(&rrule_entry);
+    let rrule_row = libadwaita::EntryRow::builder().title("Recurrence").build();
+    rrule_row.set_text(note.rrule.as_ref().map(|r| r.as_str()).unwrap_or(""));
+    group.add(&rrule_row);
 
-    // Button row: [Delete] [Save]
-    let btn_row = gtk4::Box::builder()
-        .orientation(gtk4::Orientation::Horizontal)
-        .spacing(8)
-        .build();
+    content.append(&group);
 
-    let delete_btn = gtk4::Button::builder()
-        .label("🗑  Delete")
-        .css_classes(["danger-btn"])
+    let hint = gtk4::Label::builder()
+        .label(format!("Time: {TIME_PLACEHOLDER}\nRecurrence: {RRULE_PLACEHOLDER}"))
+        .css_classes(["dim-label"])
+        .xalign(0.0)
+        .wrap(true)
         .build();
-    let save_btn = gtk4::Button::builder()
-        .label("Save")
-        .css_classes(["confirm-button"])
-        .hexpand(true)
-        .build();
+    content.append(&hint);
+
+    let btn_row = gtk4::Box::builder().orientation(gtk4::Orientation::Horizontal).spacing(8).build();
+    let delete_btn = gtk4::Button::builder().label("Delete").css_classes(["destructive-action"]).build();
+    let save_btn = gtk4::Button::builder().label("Save").css_classes(["confirm-button"]).hexpand(true).build();
     btn_row.append(&delete_btn);
     btn_row.append(&save_btn);
-    vbox.append(&btn_row);
+    content.append(&btn_row);
+
+    let scroll = gtk4::ScrolledWindow::builder()
+        .hscrollbar_policy(gtk4::PolicyType::Never)
+        .vscrollbar_policy(gtk4::PolicyType::Automatic)
+        .vexpand(true)
+        .min_content_height(400)
+        .build();
+    scroll.set_child(Some(&content));
+    toolbar_view.set_content(Some(&scroll));
+    dialog.set_child(Some(&toolbar_view));
 
     // Delete: two-click confirm
     let confirming = Rc::new(RefCell::new(false));
@@ -95,7 +132,7 @@ pub fn build_editor_popover(
         let delete_btn_label = delete_btn.clone();
         let note_id = note.id.clone();
         let store_del = store.clone();
-        let popover_del = popover.clone();
+        let dialog_del = dialog.clone();
         let on_delete = Rc::clone(&on_delete);
         let on_error = Rc::clone(&on_error);
 
@@ -105,7 +142,7 @@ pub fn build_editor_popover(
                 let id = note_id.clone();
                 let on_delete = Rc::clone(&on_delete);
                 let on_error = Rc::clone(&on_error);
-                let popover = popover_del.clone();
+                let dialog = dialog_del.clone();
                 spawn_bg(
                     move || -> anyhow::Result<()> {
                         store.delete_note(&id)?;
@@ -119,7 +156,7 @@ pub fn build_editor_popover(
                             Ok(()) => on_delete(),
                             Err(e) => on_error(format!("delete failed: {}", e)),
                         }
-                        popover.popdown();
+                        dialog.close();
                     },
                 );
             } else {
@@ -132,33 +169,20 @@ pub fn build_editor_popover(
     // Save
     {
         let note_clone = note.clone();
-        let popover_save = popover.clone();
+        let dialog_save = dialog.clone();
         let on_error = Rc::clone(&on_error);
+        let selected_type = selected_type.clone();
 
         save_btn.connect_clicked(move |_| {
-            // Read all field values on the main thread before handing off.
             let mut updated = note_clone.clone();
-            updated.body = body_entry.text().to_string();
-            updated.note_type = NoteType::from_str(
-                NoteType::all_builtin()
-                    .get(type_combo.selected() as usize)
-                    .copied()
-                    .unwrap_or("note"),
-            );
-            let time_str = time_entry.text().to_string();
-            updated.time = if time_str.trim().is_empty() {
-                None
-            } else {
-                parse_time_field(&time_str, &morning)
-            };
-            let rrule_text = rrule_entry.text().to_string();
-            updated.rrule = if rrule_text.trim().is_empty() {
-                None
-            } else {
-                Some(RecurrenceRule::new(rrule_text))
-            };
+            updated.body = body_row.text().to_string();
+            updated.note_type = NoteType::from_str(&selected_type.borrow());
+            let time_str = time_row.text().to_string();
+            updated.time = if time_str.trim().is_empty() { None } else { parse_time_field(&time_str, &morning) };
+            let rrule_text = rrule_row.text().to_string();
+            updated.rrule = if rrule_text.trim().is_empty() { None } else { Some(RecurrenceRule::new(rrule_text)) };
 
-            popover_save.popdown();
+            dialog_save.close();
 
             let store_bg = store.clone();
             let on_save = Rc::clone(&on_save);
@@ -182,8 +206,7 @@ pub fn build_editor_popover(
         });
     }
 
-    popover.set_child(Some(&vbox));
-    popover
+    dialog
 }
 
 fn spawn_bg<F, T, C>(work: F, then: C)

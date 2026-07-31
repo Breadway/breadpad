@@ -28,12 +28,33 @@ pub fn build_css(palette: &Palette, user_css: Option<&str>) -> String {
 /* breadpad/breadman-specific components */
 window { border-radius: 8px; }
 
+/* breadman/views/settings.rs — matches bos-settings' Row.svelte/
+   NumberField.svelte/TextField.svelte exactly (same design tokens: 12/16px
+   row padding, transparent-at-rest input border, ch-width inputs) rather
+   than libadwaita's own AdwActionRow/AdwSpinRow padding and internal
+   spin-button sizing, which run noticeably taller/wider and don't expose a
+   way to constrain from the outside. `list.boxed-list` already gets its
+   surface fill + radius from the shared stylesheet; this only adds the
+   compact row padding and the divider between rows. */
+list.boxed-list row.field-row { padding: 12px 16px; min-height: 0; }
+list.boxed-list row.field-row:not(:last-child) { border-bottom: 1px solid alpha(@on-surface, 0.08); }
+.field-row-subtitle { opacity: 0.6; font-size: 12px; }
+
+.field-input {
+    background-color: @bg;
+    color: @on-surface;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 4px 8px;
+}
+.field-input:focus-within { border-color: @accent; outline: none; }
+
 .popup-entry {
     background: @bg;
     color: @fg;
     border: 2px solid @blue;
     border-radius: 6px;
-    padding: 12px 16px;
+    padding: 14px;
     font-size: 14px;
     caret-color: @fg;
 }
@@ -56,6 +77,15 @@ window { border-radius: 8px; }
     background: @blue;
     color: @on-accent;
 }
+
+/* Per-type tint, matching the note-card-{type} accent-bar colors below -
+   the flat cream badge was the same high-contrast fill for every type,
+   out-shouting note body text while telling you nothing extra. */
+.type-chip-todo     { background: alpha(@green, 0.18); color: @green; }
+.type-chip-reminder { background: alpha(@yellow, 0.18); color: @yellow; }
+.type-chip-idea     { background: alpha(@pink, 0.18); color: @pink; }
+.type-chip-question { background: alpha(@teal, 0.18); color: @teal; }
+.type-chip-note     { background: alpha(@blue, 0.18); color: @blue; }
 
 .confirm-button {
     background: @blue;
@@ -135,8 +165,12 @@ window { border-radius: 8px; }
 .edit-btn { color: @blue; }
 .edit-btn:hover { background: alpha(@blue, 0.15); }
 
-.danger-btn { color: @red; }
-.danger-btn:hover { background: alpha(@red, 0.15); }
+/* Fixed red, not @red - pywal can hand `red` any hue depending on the
+   wallpaper (see bread-theme's button.destructive-action for the same
+   reasoning), which would make delete indistinguishable from a normal
+   accent action. */
+.danger-btn { color: #e01b24; }
+.danger-btn:hover { background: alpha(#e01b24, 0.15); }
 
 .note-card-todo      { border-left-color: @green;  }
 .note-card-reminder  { border-left-color: @yellow; }
@@ -170,12 +204,15 @@ window { border-radius: 8px; }
     color: @fg;
 }
 
+/* Dismiss and Snooze are both secondary/outline actions and should read at
+   equal weight - Dismiss used to sit at 0.6 alpha next to Snooze's full
+   opacity, which made the button that closes the reminder look disabled. */
 .reminder-dismiss {
     background: transparent;
     border: 1px solid @overlay;
     border-radius: 8px;
     padding: 8px 16px;
-    color: alpha(@fg, 0.6);
+    color: @fg;
 }
 
 .reminder-dismiss:hover { background: shade(@bg, 1.1); }
@@ -190,15 +227,40 @@ window { border-radius: 8px; }
 
 .reminder-snooze:hover { background: shade(@bg, 1.1); }
 
+/* Left-aligned (the button's child label sets xalign itself), full-width
+   row with a hairline divider so the list reads as distinct clickable rows
+   even before hover - a hover tint alone doesn't show up in a static
+   reading of the popover's default state. */
 .snooze-option {
     background: transparent;
     border: none;
     border-radius: 6px;
-    padding: 8px 12px;
+    padding: 10px 12px;
     color: @fg;
+    border-bottom: 1px solid alpha(@overlay, 0.15);
 }
 
 .snooze-option:hover { background: shade(@bg, 1.2); }
+
+.snooze-custom-entry {
+    background: @bg;
+    color: @fg;
+    border: 1px solid @overlay;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin: 4px;
+}
+
+.snooze-custom-entry:focus-within { border-color: @blue; outline: none; }
+
+/* Matches the reminder alert card's flat-bordered elevation (1px border,
+   8px radius, no shadow) instead of GTK's default arrow+drop-shadow popover
+   chrome - the two surfaces used to speak two different elevation
+   languages. */
+popover.snooze-popover > contents {
+    border: 1px solid @overlay;
+    box-shadow: none;
+}
 "#);
 
     if let Some(extra) = user_css {

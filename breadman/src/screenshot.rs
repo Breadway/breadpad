@@ -13,15 +13,14 @@
 //! directly to a named stack page.
 //!
 //! One view isn't a stack page at all: "editor" opens the per-note editor
-//! popover (`editor::build_editor_popover`), normally only reachable by
-//! clicking a real note card's edit button. Screenshot mode calls the same
-//! builder function directly against the first real note in the store
-//! (bypassing the button/click-handler entirely — there's no clean way to
-//! synthesize a click on a button that only ever existed as a local inside
-//! `build_note_card`, never stored anywhere else), with no-op save/delete/
-//! error callbacks since nothing here should actually persist a change.
+//! dialog (`editor::open_editor`), normally only reachable by clicking a
+//! real note row's edit button. Screenshot mode calls the same builder
+//! function directly against the first real note in the store (bypassing
+//! the button/click-handler entirely), with no-op save/delete/error
+//! callbacks since nothing here should actually persist a change.
 
 use gtk4::prelude::*;
+use libadwaita::prelude::*;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -57,7 +56,6 @@ pub fn dispatch(
     window: &gtk4::ApplicationWindow,
     req: ScreenshotRequest,
     state: crate::AppState,
-    editor_anchor: gtk4::Button,
 ) {
     let output = req.output;
     let (width, height) = (req.width as i32, req.height as i32);
@@ -68,7 +66,7 @@ pub fn dispatch(
             let root = root.clone();
             let state = state.clone();
             gtk4::glib::timeout_add_local_once(PRE_POPUP_DELAY, move || {
-                crate::show_add_note_window(&root, state, move |dialog| {
+                crate::show_add_note_window(&root, state, breadpad_shared::types::NoteType::Note, move |dialog| {
                     let output = output.clone();
                     dialog.connect_map(move |_| {
                         let output = output.clone();
@@ -83,10 +81,10 @@ pub fn dispatch(
     }
 
     if req.view == "editor" {
-        window.connect_map(move |_| {
+        window.connect_map(move |root| {
             let output = output.clone();
             let state = state.clone();
-            let editor_anchor = editor_anchor.clone();
+            let root = root.clone();
             gtk4::glib::timeout_add_local_once(PRE_POPUP_DELAY, move || {
                 let Some(note) = state.notes.borrow().first().cloned() else {
                     eprintln!("breadman: no notes in the store to build the editor view from");
@@ -94,7 +92,11 @@ pub fn dispatch(
                 };
                 let morning = state.cfg.borrow().reminders.default_morning.clone();
                 let store = Arc::new(state.write_store());
-                let popover = crate::editor::build_editor_popover(
+                // AdwDialog handles its own presentation/centering - no more
+                // manual popover anchor/position/autohide juggling. Must
+                // connect `map` BEFORE presenting, or the signal (which can
+                // fire synchronously inside `present`) is missed entirely.
+                let dialog = crate::editor::open_editor(
                     &note,
                     store,
                     morning,
@@ -102,24 +104,14 @@ pub fn dispatch(
                     Rc::new(|| {}),
                     Rc::new(|_| {}),
                 );
-                popover.set_parent(&editor_anchor);
-                // Parenting to the whole window (rather than a small,
-                // concretely-placed widget like the real edit-button call
-                // site does) left the popover positioned above the window
-                // entirely (GTK4's default Popover position is Top) — off
-                // the top of the canvas and clipped out of every capture.
-                // Anchoring to a real button plus an explicit Bottom
-                // position keeps it inside the visible canvas.
-                popover.set_position(gtk4::PositionType::Bottom);
-                popover.set_autohide(false);
                 let output = output.clone();
-                popover.connect_map(move |_| {
+                dialog.connect_map(move |_| {
                     let output = output.clone();
                     gtk4::glib::timeout_add_local_once(SETTLE_DELAY, move || {
                         finish(bread_screenshots::capture_region(0, 0, width, height, &output));
                     });
                 });
-                popover.popup();
+                dialog.present(Some(root.upcast_ref::<gtk4::Widget>()));
             });
         });
         return;
