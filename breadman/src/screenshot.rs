@@ -20,6 +20,7 @@
 //! callbacks since nothing here should actually persist a change.
 
 use gtk4::prelude::*;
+use libadwaita::prelude::*;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -92,9 +93,10 @@ pub fn dispatch(
                 let morning = state.cfg.borrow().reminders.default_morning.clone();
                 let store = Arc::new(state.write_store());
                 // AdwDialog handles its own presentation/centering - no more
-                // manual popover anchor/position/autohide juggling.
+                // manual popover anchor/position/autohide juggling. Must
+                // connect `map` BEFORE presenting, or the signal (which can
+                // fire synchronously inside `present`) is missed entirely.
                 let dialog = crate::editor::open_editor(
-                    root.upcast_ref::<gtk4::Widget>(),
                     &note,
                     store,
                     morning,
@@ -109,6 +111,7 @@ pub fn dispatch(
                         finish(bread_screenshots::capture_region(0, 0, width, height, &output));
                     });
                 });
+                dialog.present(Some(root.upcast_ref::<gtk4::Widget>()));
             });
         });
         return;

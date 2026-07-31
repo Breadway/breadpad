@@ -8,6 +8,7 @@
 
 use breadpad_shared::types::{Note, NoteType};
 use gtk4::prelude::*;
+use libadwaita::prelude::*;
 use std::rc::Rc;
 
 pub struct RowSpec<'a> {
@@ -140,8 +141,7 @@ pub fn build(spec: RowSpec, state: crate::AppState) -> gtk4::Box {
             let row_del = row_c.clone();
             let state_err = state_c.clone();
 
-            crate::editor::open_editor(
-                btn.upcast_ref::<gtk4::Widget>(),
+            let dialog = crate::editor::open_editor(
                 &note_c,
                 store,
                 morning,
@@ -163,6 +163,7 @@ pub fn build(spec: RowSpec, state: crate::AppState) -> gtk4::Box {
                     state_err.log_error(e);
                 }),
             );
+            dialog.present(Some(btn.upcast_ref::<gtk4::Widget>()));
         });
     }
     row.append(&edit_btn);

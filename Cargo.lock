@@ -314,19 +314,7 @@ dependencies = [
 
 [[package]]
 name = "bread-theme"
-version = "0.2.3"
-source = "git+https://github.com/Breadway/bread-ecosystem?tag=v0.2.8#77417d552130281ff787e07d52541eb25e9d533b"
-dependencies = [
- "dirs 5.0.1",
- "gtk4",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "bread-theme"
 version = "0.3.1"
-source = "git+https://git.breadway.dev/Breadway/bread-ecosystem?branch=dev#4e76bc707720fbfc52e19a8cc78f3fb1e6e0a713"
 dependencies = [
  "dirs 5.0.1",
  "gtk4",
@@ -351,7 +339,7 @@ version = "0.3.4"
 dependencies = [
  "anyhow",
  "bread-screenshots",
- "bread-theme 0.3.1",
+ "bread-theme",
  "breadpad-shared",
  "chrono",
  "dirs 5.0.1",
@@ -390,7 +378,7 @@ name = "breadpad-shared"
 version = "0.3.4"
 dependencies = [
  "anyhow",
- "bread-theme 0.2.3",
+ "bread-theme",
  "chrono",
  "dirs 5.0.1",
  "ical",
@@ -598,7 +586,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "117725a109d387c937a1533ce01b450cbde6b88abceea8473c4d7a85853cda3c"
 dependencies = [
  "lazy_static",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -887,7 +875,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users 0.5.2",
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -962,7 +950,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -1273,7 +1261,7 @@ dependencies = [
  "gobject-sys",
  "libc",
  "system-deps",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2145,7 +2133,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -2767,7 +2755,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3091,7 +3079,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.59.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

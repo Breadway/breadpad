@@ -23,8 +23,11 @@ use std::sync::Arc;
 pub const TIME_PLACEHOLDER: &str = "tomorrow 9am  /  at 7pm  /  2026-08-01 09:00";
 pub const RRULE_PLACEHOLDER: &str = "RRULE:FREQ=WEEKLY;BYDAY=MO";
 
+/// Builds the dialog but does not present it - callers that need to hook
+/// its `map` signal (screenshot mode) must connect before presenting or
+/// they miss the signal entirely; interactive callers present immediately
+/// with `dialog.present(Some(parent))`.
 pub fn open_editor(
-    parent: &gtk4::Widget,
     note: &Note,
     store: Arc<Store>,
     morning: String,
@@ -35,6 +38,7 @@ pub fn open_editor(
     let dialog = libadwaita::Dialog::builder()
         .title("Edit Note")
         .content_width(480)
+        .content_height(520)
         .build();
 
     let header = libadwaita::HeaderBar::new();
@@ -114,6 +118,8 @@ pub fn open_editor(
     let scroll = gtk4::ScrolledWindow::builder()
         .hscrollbar_policy(gtk4::PolicyType::Never)
         .vscrollbar_policy(gtk4::PolicyType::Automatic)
+        .vexpand(true)
+        .min_content_height(400)
         .build();
     scroll.set_child(Some(&content));
     toolbar_view.set_content(Some(&scroll));
@@ -200,7 +206,6 @@ pub fn open_editor(
         });
     }
 
-    dialog.present(Some(parent));
     dialog
 }
 

@@ -28,6 +28,27 @@ pub fn build_css(palette: &Palette, user_css: Option<&str>) -> String {
 /* breadpad/breadman-specific components */
 window { border-radius: 8px; }
 
+/* breadman/views/settings.rs — matches bos-settings' Row.svelte/
+   NumberField.svelte/TextField.svelte exactly (same design tokens: 12/16px
+   row padding, transparent-at-rest input border, ch-width inputs) rather
+   than libadwaita's own AdwActionRow/AdwSpinRow padding and internal
+   spin-button sizing, which run noticeably taller/wider and don't expose a
+   way to constrain from the outside. `list.boxed-list` already gets its
+   surface fill + radius from the shared stylesheet; this only adds the
+   compact row padding and the divider between rows. */
+list.boxed-list row.field-row { padding: 12px 16px; min-height: 0; }
+list.boxed-list row.field-row:not(:last-child) { border-bottom: 1px solid alpha(@on-surface, 0.08); }
+.field-row-subtitle { opacity: 0.6; font-size: 12px; }
+
+.field-input {
+    background-color: @bg;
+    color: @on-surface;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    padding: 4px 8px;
+}
+.field-input:focus-within { border-color: @accent; outline: none; }
+
 .popup-entry {
     background: @bg;
     color: @fg;
