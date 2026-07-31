@@ -12,7 +12,7 @@ path = "src/main.rs"
 [dependencies]
 breadpad-shared = { path = "../breadpad-shared" }
 # Capture primitives for `--screenshot` mode — see src/screenshot.rs.
-bread-screenshots = { git = "https://git.breadway.dev/Breadway/bread-ecosystem", branch = "dev" }
+bread-screenshots = { git = "https://git.breadway.dev/Breadway/bread-ecosystem", branch = "main" }
 anyhow.workspace = true
 ort.workspace = true
 tracing.workspace = true

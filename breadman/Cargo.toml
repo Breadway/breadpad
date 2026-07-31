@@ -12,11 +12,11 @@ path = "src/main.rs"
 [dependencies]
 breadpad-shared = { path = "../breadpad-shared" }
 # Capture primitives for `--screenshot` mode — see src/screenshot.rs.
-bread-screenshots = { git = "https://git.breadway.dev/Breadway/bread-ecosystem", branch = "dev" }
+bread-screenshots = { git = "https://git.breadway.dev/Breadway/bread-ecosystem", branch = "main" }
 # libadwaita-based settings-screen components (see src/views/settings.rs) —
 # on "dev", not breadpad-shared's tag-pinned copy, since the `adw` feature
 # doesn't exist on a tagged release yet.
-bread-theme = { git = "https://git.breadway.dev/Breadway/bread-ecosystem", branch = "dev", features = ["adw"] }
+bread-theme = { git = "https://git.breadway.dev/Breadway/bread-ecosystem", branch = "main", features = ["adw"] }
 libadwaita = { version = "0.9", features = ["v1_7"] }
 anyhow.workspace = true
 tracing.workspace = true
