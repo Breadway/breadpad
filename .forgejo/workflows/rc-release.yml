@@ -1,5 +1,9 @@
 name: beta (rc) release
 
+# Publishes a beta-track build for any `vX.Y.Z-rc.N` prerelease tag
+# pushed to `main` — there is no separate `beta` branch; "freezing" is
+# just pausing pushes to main while an RC gets tested. See
+# bread-ecosystem's docs/release-channels.md for the release-track policy.
 on:
   push:
     tags: ['v*']
@@ -18,13 +22,15 @@ jobs:
 
       - name: build inside container
         run: |
-          docker run --rm \
+          podman run --rm \
             -v "$(pwd)/src:/workspace" \
             -w /workspace \
             fedora:41 \
             bash -c "
               set -euo pipefail
-              dnf install -y gcc pkgconf-pkg-config libadwaita-devel cargo
+              dnf install -y gcc pkgconf-pkg-config libadwaita-devel git curl
+              curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+              source \$HOME/.cargo/env
               cargo build --release --locked
             "
 
@@ -45,6 +51,8 @@ jobs:
           cp src/bakery.toml "${PKG_DIR}/bakery.toml"
           ln -sfn "${VERSION}" "/srv/breadway-dl/beta/breadpad/latest"
 
+      # No GitHub Release upload — beta, like dev, is only distributed via
+      # dl.breadway.dev/beta/.
       - name: regenerate beta index.json
         env:
           MINISIGN_SEC_KEY: ${{ secrets.BAKERY_MINISIGN_SEC_KEY_PATH }}
@@ -55,6 +63,8 @@ jobs:
             exit 1
           fi
           rm -rf /tmp/bread-ecosystem-ci-* 2>/dev/null || true
+          # mktemp: a fixed clone path races when multiple repos' dev/beta
+          # workflows run close together on the same self-hosted runner.
           ECOSYSTEM_CI_DIR="$(mktemp -d /tmp/bread-ecosystem-ci-XXXXXX)"
           git clone https://git.breadway.dev/Breadway/bread-ecosystem.git "${ECOSYSTEM_CI_DIR}"
           TRACK=beta bash "${ECOSYSTEM_CI_DIR}/scripts/gen-index.sh"
