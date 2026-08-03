@@ -21,7 +21,7 @@ jobs:
           docker run --rm \
             -v "$(pwd)/src:/workspace" \
             -w /workspace \
-            fedora:41 \
+            fedora:rawhide \
             bash -c "
               set -euo pipefail
               dnf install -y gcc pkgconf-pkg-config libadwaita-devel git curl
