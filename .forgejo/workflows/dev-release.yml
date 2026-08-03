@@ -17,7 +17,7 @@ jobs:
 
       - name: build inside container
         run: |
-          podman run --rm \
+          docker run --rm \
             -v "$(pwd)/src:/workspace" \
             -w /workspace \
             fedora:41 \
