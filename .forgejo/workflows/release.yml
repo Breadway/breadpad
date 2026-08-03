@@ -24,11 +24,11 @@ jobs:
             fedora:41 \
             bash -c "
               set -euo pipefail
-              dnf install -y gcc pkgconf-pkg-config git curl meson ninja-build valac gtk4-devel graphene-devel
+              dnf install -y gcc gcc-c++ pkgconf-pkg-config git curl meson ninja-build valac gtk4-devel graphene-devel
               
-              # Build Libadwaita 1.7.0 from source inside container
+              # Build Libadwaita 1.7.0 from source inside container (skipping tests & docs)
               git clone https://gitlab.gnome.org/GNOME/libadwaita.git --branch 1.7.0 --depth 1 /tmp/libadwaita
-              meson setup /tmp/libadwaita/build /tmp/libadwaita --prefix=/usr
+              meson setup /tmp/libadwaita/build /tmp/libadwaita --prefix=/usr -Dtests=false -Ddoc=false
               ninja -C /tmp/libadwaita/build
               ninja -C /tmp/libadwaita/build install
 
