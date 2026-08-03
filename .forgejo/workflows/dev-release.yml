@@ -17,13 +17,21 @@ jobs:
 
       - name: build inside container
         run: |
-          docker run --rm \
+          podman run --rm \
             -v "$(pwd)/src:/workspace" \
             -w /workspace \
-            fedora:rawhide \
+            fedora:41 \
             bash -c "
               set -euo pipefail
-              dnf install -y gcc pkgconf-pkg-config libadwaita-devel git curl
+              dnf install -y gcc pkgconf-pkg-config git curl meson ninja-build valac gtk4-devel graphene-devel
+              
+              # Build Libadwaita 1.7.0 from source inside container
+              git clone https://gitlab.gnome.org/GNOME/libadwaita.git --branch 1.7.0 --depth 1 /tmp/libadwaita
+              meson setup /tmp/libadwaita/build /tmp/libadwaita --prefix=/usr
+              ninja -C /tmp/libadwaita/build
+              ninja -C /tmp/libadwaita/build install
+
+              # Install Rust and build
               curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
               source \$HOME/.cargo/env
               cargo build --release --locked
