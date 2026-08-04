@@ -324,6 +324,67 @@ pub fn parse_rule_based(text: &str, default_morning: &str) -> ClassificationResu
     }
 }
 
+fn infer_type(text: &str, has_time: bool, has_rrule: bool) -> NoteType {
+    let lower = text.to_lowercase();
+    if has_rrule || has_time {
+        return NoteType::Reminder;
+    }
+    if lower.contains("buy ")
+        || lower.contains("pick up")
+        || lower.contains("clean ")
+        || lower.starts_with("call ")
+        || lower.starts_with("email ")
+        || lower.starts_with("fix ")
+        || lower.starts_with("check ")
+        || lower.starts_with("finish ")
+        || lower.starts_with("write ")
+        || lower.starts_with("update ")
+        || lower.starts_with("prepare ")
+        || lower.starts_with("schedule ")
+        || lower.starts_with("organize ")
+        || lower.starts_with("deploy ")
+        || lower.starts_with("install ")
+        || lower.starts_with("send ")
+        || lower.starts_with("submit ")
+        || lower.starts_with("create ")
+        || lower.starts_with("setup ")
+        || lower.starts_with("restore ")
+        || lower.starts_with("archive ")
+        || lower.starts_with("export ")
+        || lower.starts_with("import ")
+        || lower.starts_with("approve ")
+        || lower.starts_with("configure ")
+        || lower.starts_with("refactor ")
+        || lower.starts_with("review ")
+    {
+        return NoteType::Todo;
+    }
+    if lower.starts_with("what if ")
+        || lower.starts_with("idea:")
+        || lower.contains("could ")
+        || lower.contains("maybe ")
+        || lower.starts_with("should we ")
+    {
+        return NoteType::Idea;
+    }
+    if lower.starts_with("why ")
+        || lower.starts_with("how ")
+        || (lower.starts_with("what ") && !lower.starts_with("what if "))
+        || lower.starts_with("when ")
+        || lower.starts_with("where ")
+        || lower.starts_with("who ")
+        || lower.starts_with("will ")
+        || lower.starts_with("is ")
+        || lower.starts_with("are ")
+        || lower.starts_with("did ")
+        || lower.starts_with("does ")
+        || lower.ends_with('?')
+    {
+        return NoteType::Question;
+    }
+    NoteType::Note
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -490,7 +551,7 @@ mod tests {
         let r = p("take a break in 30 minutes");
         let t = r.time.unwrap();
         let delta = (t - before).num_seconds();
-        assert!(delta >= 29 * 60 && delta <= 31 * 60, "delta was {}s", delta);
+        assert!((29 * 60..=31 * 60).contains(&delta), "delta was {}s", delta);
     }
 
     #[test]
@@ -498,7 +559,7 @@ mod tests {
         let before = Utc::now();
         let r = p("ping in 1 minute");
         let delta = (r.time.unwrap() - before).num_seconds();
-        assert!(delta >= 55 && delta <= 65, "delta was {}s", delta);
+        assert!((55..=65).contains(&delta), "delta was {}s", delta);
     }
 
     #[test]
@@ -506,7 +567,7 @@ mod tests {
         let before = Utc::now();
         let r = p("review PR in 2 hours");
         let delta_min = (r.time.unwrap() - before).num_minutes();
-        assert!(delta_min >= 119 && delta_min <= 121, "delta was {}min", delta_min);
+        assert!((119..=121).contains(&delta_min), "delta was {}min", delta_min);
     }
 
     #[test]
@@ -514,7 +575,7 @@ mod tests {
         let before = Utc::now();
         let r = p("follow up in 3 days");
         let delta_h = (r.time.unwrap() - before).num_hours();
-        assert!(delta_h >= 71 && delta_h <= 73, "delta was {}h", delta_h);
+        assert!((71..=73).contains(&delta_h), "delta was {}h", delta_h);
     }
 
     // ---- Time extraction: tomorrow ----
@@ -717,7 +778,7 @@ mod tests {
         let before = Utc::now();
         let r = p("check on the server in an hour");
         let delta_min = (r.time.unwrap() - before).num_minutes();
-        assert!(delta_min >= 59 && delta_min <= 61, "delta was {}min", delta_min);
+        assert!((59..=61).contains(&delta_min), "delta was {}min", delta_min);
     }
 
     #[test]
@@ -737,7 +798,7 @@ mod tests {
         let before = Utc::now();
         let r = p("in a couple of hours remind me to check the oven");
         let delta_min = (r.time.unwrap() - before).num_minutes();
-        assert!(delta_min >= 119 && delta_min <= 121, "delta was {}min", delta_min);
+        assert!((119..=121).contains(&delta_min), "delta was {}min", delta_min);
     }
 
     #[test]
@@ -758,7 +819,7 @@ mod tests {
         let before = Utc::now();
         let r = p("in half an hour submit the report");
         let delta_min = (r.time.unwrap() - before).num_minutes();
-        assert!(delta_min >= 29 && delta_min <= 31, "delta was {}min", delta_min);
+        assert!((29..=31).contains(&delta_min), "delta was {}min", delta_min);
     }
 
     // ---- Tonight / this evening ----
@@ -846,65 +907,4 @@ mod tests {
         assert!(rule.as_str().contains("FREQ=WEEKLY"), "rule: {}", rule.as_str());
         assert!(rule.as_str().contains("BYHOUR=16"), "rule: {}", rule.as_str());
     }
-}
-
-fn infer_type(text: &str, has_time: bool, has_rrule: bool) -> NoteType {
-    let lower = text.to_lowercase();
-    if has_rrule || has_time {
-        return NoteType::Reminder;
-    }
-    if lower.contains("buy ")
-        || lower.contains("pick up")
-        || lower.contains("clean ")
-        || lower.starts_with("call ")
-        || lower.starts_with("email ")
-        || lower.starts_with("fix ")
-        || lower.starts_with("check ")
-        || lower.starts_with("finish ")
-        || lower.starts_with("write ")
-        || lower.starts_with("update ")
-        || lower.starts_with("prepare ")
-        || lower.starts_with("schedule ")
-        || lower.starts_with("organize ")
-        || lower.starts_with("deploy ")
-        || lower.starts_with("install ")
-        || lower.starts_with("send ")
-        || lower.starts_with("submit ")
-        || lower.starts_with("create ")
-        || lower.starts_with("setup ")
-        || lower.starts_with("restore ")
-        || lower.starts_with("archive ")
-        || lower.starts_with("export ")
-        || lower.starts_with("import ")
-        || lower.starts_with("approve ")
-        || lower.starts_with("configure ")
-        || lower.starts_with("refactor ")
-        || lower.starts_with("review ")
-    {
-        return NoteType::Todo;
-    }
-    if lower.starts_with("what if ")
-        || lower.starts_with("idea:")
-        || lower.contains("could ")
-        || lower.contains("maybe ")
-        || lower.starts_with("should we ")
-    {
-        return NoteType::Idea;
-    }
-    if lower.starts_with("why ")
-        || lower.starts_with("how ")
-        || (lower.starts_with("what ") && !lower.starts_with("what if "))
-        || lower.starts_with("when ")
-        || lower.starts_with("where ")
-        || lower.starts_with("who ")
-        || lower.starts_with("will ")
-        || lower.starts_with("is ")
-        || lower.starts_with("are ")
-        || lower.starts_with("did ")
-        || lower.starts_with("does ")
-        || lower.ends_with('?')
-    {
-        return NoteType::Question;
-    }
-    NoteType::Note
 }

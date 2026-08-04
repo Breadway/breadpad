@@ -468,7 +468,7 @@ fn build_reminder_window(
         let local: chrono::DateTime<chrono::Local> = t.into();
         header.append(
             &gtk4::Label::builder()
-                .label(&local.format("%H:%M").to_string())
+                .label(local.format("%H:%M").to_string())
                 .css_classes(["reminder-time"])
                 .build(),
         );

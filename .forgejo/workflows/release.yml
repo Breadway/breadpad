@@ -2,11 +2,11 @@ name: release
 
 on:
   push:
-    tags: ["v*"]
+    tags: ['v*']
+    tags-ignore: ['v*-rc.*']
 
 jobs:
   build:
-    if: ${{ !contains(github.ref_name, '-rc.') }}
     runs-on: [self-hosted, hestia]
     steps:
       - name: checkout
@@ -16,27 +16,8 @@ jobs:
           git clone --branch "${GITHUB_REF_NAME}" --depth 1 \
             "https://git.breadway.dev/${GITHUB_REPOSITORY}.git" src
 
-      - name: build inside container
-        run: |
-          docker run --rm \
-            -v "$(pwd)/src:/workspace" \
-            -w /workspace \
-            fedora:41 \
-            bash -c "
-              set -euo pipefail
-              dnf install -y gcc gcc-c++ pkgconf-pkg-config git curl meson ninja-build valac gtk4-devel graphene-devel
-              
-              # Build Libadwaita 1.7.0 from source inside container (skipping tests & docs)
-              git clone https://gitlab.gnome.org/GNOME/libadwaita.git --branch 1.7.0 --depth 1 /tmp/libadwaita
-              meson setup /tmp/libadwaita/build /tmp/libadwaita --prefix=/usr -Dtests=false -Ddoc=false
-              ninja -C /tmp/libadwaita/build
-              ninja -C /tmp/libadwaita/build install
-
-              # Install Rust and build
-              curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
-              source \$HOME/.cargo/env
-              cargo build --release --locked
-            "
+      - name: build
+        run: cd src && bash ci/build.sh cargo build --release --locked
 
       - name: prepare artifacts
         run: |

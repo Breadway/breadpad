@@ -15,6 +15,9 @@ pub enum NoteType {
 }
 
 impl NoteType {
+    // Not std::str::FromStr — infallible, returns Self directly rather than
+    // Result, and used across 30+ call sites as NoteType::from_str(..).
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "todo" => NoteType::Todo,

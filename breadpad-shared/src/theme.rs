@@ -278,7 +278,7 @@ mod tests {
     #[test]
     fn css_defines_bg_color() {
         let css = build_css(&Palette::default(), None);
-        assert!(css.contains("@define-color bg #1e1e2e"), "css missing bg: {}", &css[..300]);
+        assert!(css.contains("@define-color bg #0c0c0c"), "css missing bg: {}", &css[..300]);
     }
 
     #[test]
@@ -323,9 +323,11 @@ mod tests {
 
     #[test]
     fn css_reflects_custom_palette_colors() {
-        let mut p = Palette::default();
-        p.background = "#deadbe".into();
-        p.color4 = "#cafe00".into();
+        let p = Palette {
+            background: "#deadbe".into(),
+            color4: "#cafe00".into(),
+            ..Default::default()
+        };
         let css = build_css(&p, None);
         assert!(css.contains("@define-color bg #deadbe"), "css: {}", &css[..300]);
         assert!(css.contains("@define-color blue #cafe00"), "css: {}", &css[..300]);

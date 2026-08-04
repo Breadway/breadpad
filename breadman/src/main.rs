@@ -108,13 +108,15 @@ mod args {
 
 // ── AppState ──────────────────────────────────────────────────────────────────
 
+type ErrorLog = Rc<RefCell<Vec<(chrono::DateTime<Local>, String)>>>;
+
 /// Shared UI state, cheap to clone (all fields are Rc/Arc).
 #[derive(Clone)]
 struct AppState {
     store: Arc<Store>,
     notes: Rc<RefCell<Vec<Note>>>,
     cfg: Rc<RefCell<Config>>,
-    errors: Rc<RefCell<Vec<(chrono::DateTime<Local>, String)>>>,
+    errors: ErrorLog,
     active_view: Rc<RefCell<String>>,
     stack: gtk4::Stack,
     window: gtk4::ApplicationWindow,
@@ -579,7 +581,7 @@ fn build_note_list(
         .build();
 
     let mut sorted: Vec<Note> = notes.iter().filter(|n| !n.done).cloned().collect();
-    sorted.sort_by(|a, b| b.created.cmp(&a.created));
+    sorted.sort_by_key(|n| std::cmp::Reverse(n.created));
 
     if sorted.is_empty() {
         let action = empty_new_type.map(|nt| views::row::new_note_action(nt, state.window.clone(), state.clone()));
