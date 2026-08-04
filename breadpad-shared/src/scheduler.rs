@@ -176,7 +176,7 @@ pub(crate) fn parse_next_from_rrule(rrule_str: &str, default_morning: &str) -> O
             } else {
                 (now.date_naive() + chrono::Duration::days(1)).and_time(fire_time)
             };
-            return Some(local_naive_to_utc(naive));
+            Some(local_naive_to_utc(naive))
         }
         "WEEKLY" => {
             use chrono::Datelike;
@@ -204,7 +204,7 @@ pub(crate) fn parse_next_from_rrule(rrule_str: &str, default_morning: &str) -> O
             };
             let target_date =
                 (now.date_naive() + chrono::Duration::days(days_ahead)).and_time(fire_time);
-            return Some(local_naive_to_utc(target_date));
+            Some(local_naive_to_utc(target_date))
         }
         _ => None,
     }

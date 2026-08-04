@@ -389,7 +389,7 @@ fn cmd_show(index: usize, corpus_path: &Path, tier: &TierArg) -> Result<()> {
     println!();
 
     let sep = "─".repeat(62);
-    println!("{:<14} {:<26} {}", "field", "expected", "actual");
+    println!("{:<14} {:<26} actual", "field", "expected");
     println!("{sep}");
     println!(
         "{:<14} {:<26} {}",

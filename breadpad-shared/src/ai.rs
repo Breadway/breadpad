@@ -73,7 +73,7 @@ impl OllamaClient {
         let classification: OllamaClassification = extract_json(&ollama_resp.response)
             .ok_or_else(|| anyhow::anyhow!(
                 "no JSON object found in response — raw: {:?}",
-                &ollama_resp.response
+                ollama_resp.response
             ))?;
 
         let note_type = classification

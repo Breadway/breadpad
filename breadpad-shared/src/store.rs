@@ -118,11 +118,11 @@ impl Store {
         Ok(())
     }
 
-    fn rewrite_notes<F>(&self, mut f: F) -> Result<()>
+    fn rewrite_notes<F>(&self, f: F) -> Result<()>
     where
         F: FnMut(Note) -> Note,
     {
-        let notes: Vec<Note> = self.load_all()?.into_iter().map(|n| f(n)).collect();
+        let notes: Vec<Note> = self.load_all()?.into_iter().map(f).collect();
         self.write_all(&self.notes_path, &notes)
     }
 
@@ -145,7 +145,7 @@ impl Store {
         let notes = self.load_all()?;
         let (to_archive, keep): (Vec<Note>, Vec<Note>) = notes
             .into_iter()
-            .partition(|n| n.done && n.completed.map_or(false, |c| c < cutoff));
+            .partition(|n| n.done && n.completed.is_some_and(|c| c < cutoff));
 
         if to_archive.is_empty() {
             return Ok(0);

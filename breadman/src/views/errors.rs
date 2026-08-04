@@ -35,7 +35,7 @@ pub fn build(entries: &[(DateTime<chrono::Local>, String)]) -> gtk4::ScrolledWin
                 .build();
 
             let time_label = gtk4::Label::builder()
-                .label(&ts.format("%H:%M:%S").to_string())
+                .label(ts.format("%H:%M:%S").to_string())
                 .width_chars(10)
                 .xalign(0.0)
                 .css_classes(["dim-label"])

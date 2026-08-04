@@ -279,15 +279,19 @@ fn resolved_ort_dylib_empty_returns_none() {
 
 #[test]
 fn resolved_ort_dylib_whitespace_only_returns_none() {
-    let mut m = ModelConfig::default();
-    m.ort_dylib_path = "   ".into();
+    let m = ModelConfig {
+        ort_dylib_path: "   ".into(),
+        ..Default::default()
+    };
     assert!(m.resolved_ort_dylib_path().is_none());
 }
 
 #[test]
 fn resolved_ort_dylib_set_returns_some() {
-    let mut m = ModelConfig::default();
-    m.ort_dylib_path = "/usr/lib/libonnxruntime.so".into();
+    let m = ModelConfig {
+        ort_dylib_path: "/usr/lib/libonnxruntime.so".into(),
+        ..Default::default()
+    };
     assert_eq!(
         m.resolved_ort_dylib_path().unwrap().to_str().unwrap(),
         "/usr/lib/libonnxruntime.so"

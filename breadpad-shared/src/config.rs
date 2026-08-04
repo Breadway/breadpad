@@ -135,7 +135,7 @@ impl Default for RemindersConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CalendarConfig {
     #[serde(default = "default_calendar_enabled")]
     pub enabled: bool,
@@ -148,17 +148,6 @@ pub struct CalendarConfig {
     /// A future release may support reading the password from the OS secret service instead.
     #[serde(default)]
     pub password: String,
-}
-
-impl Default for CalendarConfig {
-    fn default() -> Self {
-        CalendarConfig {
-            enabled: false,
-            url: String::new(),
-            username: String::new(),
-            password: String::new(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
