@@ -69,13 +69,21 @@ cargo test --release --workspace
 
 ## CI
 
+- `check.yml` — clippy + test, triggered on push to `feature/**`/`fix/**`.
+  Fast-fail before anything reaches `main`.
 - `dev-release.yml` — triggered on push to `main`.
 - `rc-release.yml` — triggered on any `vX.Y.Z-rc.N` tag push.
 - `release.yml` — triggered on any other `v*` tag push, cuts the actual
   stable release.
 
-All CI runs on a self-hosted runner; nothing runs automatically on plain
-commits or PRs beyond the track builds above. See
+All of these build inside a pinned Arch Linux container (`ci/Containerfile`,
+run via `ci/build.sh`) on a self-hosted runner — not the runner host's
+native environment. Arch's repos carry current `gtk4`/`libadwaita`/
+`gtk4-layer-shell` as prebuilt packages, so there's no from-source library
+build to go stale. The image is rebuilt (and re-cached by Docker) only when
+`ci/Containerfile` changes, so a plain push doesn't refetch or recompile
+the toolchain. Nothing runs automatically on plain commits or PRs beyond
+the jobs listed above. See
 [bread-ecosystem's docs/release-channels.md](https://git.breadway.dev/Breadway/bread-ecosystem/src/branch/main/docs/release-channels.md)
 for the full policy, including how a new product gets wired onto these tracks.
 
