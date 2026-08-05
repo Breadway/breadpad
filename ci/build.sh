@@ -18,4 +18,4 @@ if [ ! -d "$CACHE_DIR" ]; then
     git -C "$CACHE_DIR" checkout --quiet "$REV"
 fi
 
-bash "${CACHE_DIR}/ci/build.sh" "$ROOT" "$@"
+bash "${CACHE_DIR}/ci/build.sh" breadpad "$ROOT" "$@"
