@@ -76,14 +76,19 @@ cargo test --release --workspace
 - `release.yml` — triggered on any other `v*` tag push, cuts the actual
   stable release.
 
-All of these build inside a pinned Arch Linux container (`ci/Containerfile`,
-run via `ci/build.sh`) on a self-hosted runner — not the runner host's
-native environment. Arch's repos carry current `gtk4`/`libadwaita`/
-`gtk4-layer-shell` as prebuilt packages, so there's no from-source library
-build to go stale. The image is rebuilt (and re-cached by Docker) only when
-`ci/Containerfile` changes, so a plain push doesn't refetch or recompile
-the toolchain. Nothing runs automatically on plain commits or PRs beyond
-the jobs listed above. See
+All of these build inside a pinned Arch Linux container on a self-hosted
+runner — not the runner host's native environment. Arch's repos carry
+current `gtk4`/`libadwaita`/`gtk4-layer-shell` as prebuilt packages, so
+there's no from-source library build to go stale. The Containerfile and
+build script are shared across bread-ecosystem GTK4 products, living in
+`bread-ecosystem/ci/`; `ci/build.sh` here is a thin wrapper that clones
+that repo at the commit pinned in `ci/bread-ecosystem.rev` (not `main` —
+an unrelated change there shouldn't silently affect this repo's release
+builds) and delegates to it. Bump the pin deliberately when you want the
+shared image or build logic updated. A `ci/deps.txt` here (currently
+absent — breadpad needs nothing beyond the shared base) would layer on
+extra pacman packages if that ever changes. Nothing runs automatically on
+plain commits or PRs beyond the jobs listed above. See
 [bread-ecosystem's docs/release-channels.md](https://git.breadway.dev/Breadway/bread-ecosystem/src/branch/main/docs/release-channels.md)
 for the full policy, including how a new product gets wired onto these tracks.
 
