@@ -1,31 +1,21 @@
 #!/usr/bin/env bash
-# Builds (or reuses, via docker's own layer cache) the pinned Arch CI image
-# from ci/Containerfile, then runs the given cargo command inside it against
-# this repo checkout.
-#
-# Cargo's registry/git caches and CARGO_TARGET_DIR are persisted in named
-# docker volumes so they survive across runs even though the repo checkout
-# itself (a fresh --depth 1 clone per workflow run) does not.
+# Delegates to bread-ecosystem's shared CI build image/script, pinned to
+# the commit in ci/bread-ecosystem.rev — not `main`. bread-ecosystem's CI
+# files now affect every product's release pipeline, so bumping the pin
+# is a deliberate act instead of silent drift (see the bread-theme test
+# that broke here for exactly that reason, before it was pinned by rev).
 #
 # Usage: ci/build.sh cargo build --release --locked
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT"
+REV="$(cat "${ROOT}/ci/bread-ecosystem.rev")"
 
-docker build -t breadpad-ci:archlinux -f ci/Containerfile ci
+CACHE_DIR="/tmp/bread-ecosystem-ci-${REV}"
+if [ ! -d "$CACHE_DIR" ]; then
+    rm -rf /tmp/bread-ecosystem-ci-*
+    git clone https://git.breadway.dev/Breadway/bread-ecosystem.git "$CACHE_DIR"
+    git -C "$CACHE_DIR" checkout --quiet "$REV"
+fi
 
-docker run --rm \
-    -v "${ROOT}:/workspace" \
-    -v breadpad-cargo-registry:/root/.cargo/registry \
-    -v breadpad-cargo-git:/root/.cargo/git \
-    -v breadpad-cargo-target:/cargo-target \
-    -w /workspace \
-    -e CARGO_TARGET_DIR=/cargo-target \
-    breadpad-ci:archlinux \
-    bash -c '
-        set -euo pipefail
-        "$@"
-        mkdir -p /workspace/target
-        cp -a /cargo-target/. /workspace/target/
-    ' bash "$@"
+bash "${CACHE_DIR}/ci/build.sh" "$ROOT" "$@"
