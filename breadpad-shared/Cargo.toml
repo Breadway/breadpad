@@ -7,7 +7,7 @@ authors.workspace = true
 
 
 [dependencies]
-bread-theme = { git = "https://git.breadway.dev/Breadway/bread-ecosystem", tag = "v0.7.1", features = ["gtk"] }
+bread-theme = { git = "https://git.breadway.dev/Breadway/bread-ecosystem", tag = "v0.7.2", features = ["gtk"] }
 anyhow.workspace = true
 tracing.workspace = true
 serde.workspace = true
