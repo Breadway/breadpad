@@ -20,6 +20,9 @@ mod views;
 // ── Args ─────────────────────────────────────────────────────────────────────
 
 mod args {
+    use bread_utils::screenshot_cli::{validate_pair, DEFAULT_HEIGHT, DEFAULT_WIDTH};
+    use std::path::Path;
+
     #[derive(Debug)]
     pub struct Args {
         pub view: Option<String>,
@@ -32,18 +35,20 @@ mod args {
     }
 
     impl Args {
-        /// `None` for a normal run. Exits the process with an error if
-        /// `--screenshot` was given without `--output`, before any GTK
+        /// `None` for a normal run. Exits the process with an error if the
+        /// `--screenshot` / `--output` pair is incomplete, before any GTK
         /// setup happens.
         pub fn screenshot_request(&self) -> Option<crate::screenshot::ScreenshotRequest> {
-            let view = self.screenshot.clone()?;
-            let Some(output) = self.output.clone() else {
-                eprintln!("breadman: --screenshot requires --output");
+            if let Err(e) = validate_pair(
+                self.screenshot.as_deref(),
+                self.output.as_deref().map(Path::new),
+            ) {
+                eprintln!("breadman: {e}");
                 std::process::exit(1);
-            };
+            }
             Some(crate::screenshot::ScreenshotRequest {
-                view,
-                output: output.into(),
+                view: self.screenshot.clone()?,
+                output: self.output.clone()?.into(),
                 width: self.width,
                 height: self.height,
             })
@@ -57,8 +62,8 @@ mod args {
             upcoming_plain: false,
             screenshot: None,
             output: None,
-            width: 1920,
-            height: 1080,
+            width: DEFAULT_WIDTH,
+            height: DEFAULT_HEIGHT,
         };
         let raw: Vec<String> = std::env::args().skip(1).collect();
         let mut i = 0;

@@ -18,19 +18,15 @@
 //! entirely), and "reminder-snooze" (the same window with its snooze
 //! popover open).
 
+use bread_utils::screenshot_cli::SETTLE_DELAY;
 use gtk4::prelude::*;
 use std::path::PathBuf;
 use std::time::Duration;
 
-/// Extra settle time after `map` for the first frame to actually paint
-/// before grim runs — `map` fires once the surface exists, not once
-/// anything has been drawn into it.
-const SETTLE_DELAY: Duration = Duration::from_millis(300);
-
 /// Delay before popping the snooze popover open — same reasoning as every
 /// other app's PRE_POPUP_DELAY: the parent window's own layout needs a beat
 /// to settle first.
-const PRE_POPUP_DELAY: Duration = Duration::from_millis(300);
+const PRE_POPUP_DELAY: Duration = SETTLE_DELAY;
 
 #[derive(Clone)]
 pub struct ScreenshotRequest {

@@ -13,6 +13,8 @@ path = "src/main.rs"
 breadpad-shared = { path = "../breadpad-shared" }
 # Capture primitives for `--screenshot` mode — see src/screenshot.rs.
 bread-screenshots = { git = "https://git.breadway.dev/Breadway/bread-ecosystem", tag = "v0.7.2" }
+# Shared `--screenshot` pair validation + settle delay (`screenshot_cli`).
+bread-utils = { git = "https://git.breadway.dev/Breadway/bread-ecosystem", tag = "v0.7.2" }
 # `adw` implies `gtk`. Local chip/init shims remain in src/theme_widgets.rs.
 bread-theme = { git = "https://git.breadway.dev/Breadway/bread-ecosystem", tag = "v0.7.2", features = ["adw"] }
 libadwaita = { version = "0.9", features = ["v1_7"] }

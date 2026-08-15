@@ -353,6 +353,7 @@ dependencies = [
  "anyhow",
  "bread-screenshots",
  "bread-theme",
+ "bread-utils",
  "breadpad-shared",
  "chrono",
  "dirs 5.0.1",
