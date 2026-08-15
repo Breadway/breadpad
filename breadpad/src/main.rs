@@ -15,6 +15,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, Once};
 
+mod listen;
 mod screenshot;
 
 /// Sibling-app id in `bread_shared::apps::KNOWN_APPS`. Events are `bread.pad.*`.
@@ -64,6 +65,7 @@ mod args {
         pub output: Option<String>,
         pub width: u32,
         pub height: u32,
+        pub listen: bool,
     }
 
     impl Args {
@@ -99,6 +101,7 @@ mod args {
             output: None,
             width: 1920,
             height: 1080,
+            listen: false,
         };
         let raw: Vec<String> = std::env::args().skip(1).collect();
         let mut i = 0;
@@ -112,6 +115,7 @@ mod args {
                 "--status" => args.status = true,
                 "download-model" => args.download_model = true,
                 "model-info" => args.model_info = true,
+                "listen" => args.listen = true,
                 "fire" => {
                     i += 1;
                     args.fire_id = raw.get(i).cloned();
@@ -165,6 +169,9 @@ fn main() -> Result<()> {
         .init();
 
     let args = args::parse();
+    if args.listen {
+        return listen::run();
+    }
     let cfg = Config::load()?;
 
     if args.status {

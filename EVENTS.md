@@ -8,11 +8,11 @@ specifically its "Namespaces" and "Integrating a bread\* app" sections — for
 the general convention this follows.
 
 App id: **`pad`**. Transport: `bread-utils`'s `bread_client` module
-(feature `bread-client`) — the capture popup links it directly. breadpad is
-short-lived (one popup, or one `fire <id>` invocation from the existing
-systemd user timer), so each `emit` is its own short-lived connection.
-There is no long-running breadpad daemon and therefore no command
-subscription.
+(feature `bread-client`) — the capture popup links it directly. One-shot
+popup / `fire <id>` invocations each `emit` on their own short-lived
+connection. Command verbs are only received while `breadpad listen` is
+running — that process holds the `bread.command.pad.**` subscription
+open.
 
 `breadman` (the viewer) does not emit or subscribe. Notes created or edited
 there are not quick-capture, and it is not on the reminder-fire path.
@@ -23,6 +23,8 @@ there are not quick-capture, and it is not on the reminder-fire path.
 |-------|------|------|
 | `bread.pad.captured` | `{ "id": "<note id>" }` | The capture popup saved a note successfully (`Store::save_note` returned `Ok`). Not emitted when the field is empty, the window is dismissed, classification-only preview happens, or the write fails. |
 | `bread.pad.reminder.due` | `{ "id": "<note id>" }` | `breadpad fire <id>` decided the reminder is due (`Scheduler::fire` returned true) and is about to show the reminder window. This is the existing in-process systemd-timer hook (`breadpad-reminder-<id>.timer` → `breadpad fire <id>`), not a new daemon. Not emitted when the note is missing, the fire is outside the missed-grace window, or the reminder window is opened as a `--screenshot` sample. |
+| `bread.pad.capture.done` | `{}` | `bread.command.pad.capture` was received and `breadpad` was spawned. This is the command confirmation, not proof the popup mapped — the spawned process is the same no-args invocation as the capture keybind. |
+| `bread.pad.capture.failed` | `{ "error": "<message>" }` | `bread.command.pad.capture` was received but this binary could not be started. |
 
 Note bodies are never included in the payload — only the local note id.
 Notes stay in `~/.local/share/breadpad/notes.jsonl`; the event bus is for
@@ -31,19 +33,38 @@ content.
 
 ## Commands honored (`bread.command.pad.*`)
 
-None. breadpad has no persistent process that could subscribe, and the
-actions a command verb would map to already exist as local CLI / keybind
-paths (`breadpad` for capture, `breadpad fire <id>` for the reminder
-window, `breadman` for viewing and editing). Stubbing `capture` / `snooze`
-/ `done` on the bus without a subscriber (or inventing a daemon just to
-hold one) would be a no-op dressed up as an API. If breadpad later grows a
-long-running piece that can honor a verb for real, add the verb then.
+These are only received while `breadpad listen` is running. Publishing a
+command with no subscriber is a silent no-op — that is the documented
+bread convention, not a breadpad bug.
+
+| Verb | Data | Effect |
+|------|------|--------|
+| `capture` | none | Same as running `breadpad` with no args: open the capture popup. Emits `bread.pad.capture.done` / `.failed`. |
+
+```lua
+bread.spawn(function()
+    bread.emit("bread.command.pad.capture")
+    bread.wait("bread.pad.capture.done", { timeout = 5000 })
+end)
+```
+
+### Not implemented: extra verbs
+
+There is no `snooze` / `done` / `fire` command verb. Reminder fire
+already exists as `breadpad fire <id>` (systemd user timer), and
+viewing/editing lives in `breadman`. If/when a bus verb maps to real
+extra behavior, add it then — do not stub one as a no-op ahead of it.
 
 ## Fail-safe behavior
 
 - If breadd isn't installed or isn't running, `emit` is a silent no-op
-  (`BreadClient::emit` never blocks or errors the caller). Capture, save,
+  (`BreadClient::emit` never blocks or errors the caller) and the
+  command subscription simply never receives anything. Capture, save,
   systemd timers, and the reminder window are entirely unaffected.
-- There is no command subscription to reconnect. Restarting breadd does
-  not require restarting breadpad; the next real capture or fire will emit
-  again if breadd is reachable at that moment.
+- If breadd restarts, the command subscription reconnects automatically
+  (`BreadClient::subscribe`'s background thread has its own backoff
+  loop); no restart of `breadpad listen` is needed.
+- If `breadpad listen` is not running, commands are a graceful no-op at
+  the bus (no subscriber). One-shot capture / `fire` still emit
+  `bread.pad.captured` / `bread.pad.reminder.due` on their own
+  short-lived connection.
