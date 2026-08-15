@@ -28,5 +28,5 @@ svgs.txt
 Cargo.lock
 dist/
 
-# Local hygiene notes (not for commit)
-CLAUDE.md
+# Local knowledge-graph cache
+graphify-out/

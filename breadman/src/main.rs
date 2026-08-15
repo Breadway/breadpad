@@ -14,6 +14,7 @@ use std::sync::Arc;
 
 mod editor;
 mod screenshot;
+mod theme_widgets;
 mod views;
 
 // ── Args ─────────────────────────────────────────────────────────────────────
@@ -357,7 +358,7 @@ fn build_app_window(
     // Needed once before constructing any adw:: widget (see views::settings) —
     // also forces dark mode, since bread-theme's palette is a fixed dark base
     // regardless of the system GTK preference.
-    bread_theme::adw::init();
+    theme_widgets::init_adw();
 
     let store = Arc::new(Store::new()?);
     let notes = store.load_all()?;
@@ -627,9 +628,8 @@ fn show_add_note_window(parent: &gtk4::ApplicationWindow, state: AppState, prese
         .build();
     vbox.append(&body_entry);
 
-    // Type pills — same bread_theme::gtk::chip widget the editor dialog and
-    // settings screen use, instead of three different type-picker widgets
-    // across the app.
+    // Type pills — same chip widget the editor dialog and settings screen
+    // use, instead of three different type-picker widgets across the app.
     vbox.append(&gtk4::Label::builder().label("Type").xalign(0.0).build());
     let chip_box = gtk4::Box::builder()
         .orientation(gtk4::Orientation::Horizontal)
@@ -638,17 +638,17 @@ fn show_add_note_window(parent: &gtk4::ApplicationWindow, state: AppState, prese
     let selected_type: Rc<RefCell<NoteType>> = Rc::new(RefCell::new(preselect.clone()));
     let chips: Vec<(gtk4::Button, NoteType)> = NoteType::all_builtin()
         .iter()
-        .map(|&name| (bread_theme::gtk::chip(name), NoteType::from_str(name)))
+        .map(|&name| (theme_widgets::chip(name), NoteType::from_str(name)))
         .collect();
     for (btn, nt) in &chips {
-        bread_theme::gtk::set_chip_active(btn, *nt == preselect);
+        theme_widgets::set_chip_active(btn, *nt == preselect);
         let sel = selected_type.clone();
         let nt_c = nt.clone();
         let all_btns: Vec<gtk4::Button> = chips.iter().map(|(b, _)| b.clone()).collect();
         btn.connect_clicked(move |clicked| {
             *sel.borrow_mut() = nt_c.clone();
-            for b in &all_btns { bread_theme::gtk::set_chip_active(b, false); }
-            bread_theme::gtk::set_chip_active(clicked, true);
+            for b in &all_btns { theme_widgets::set_chip_active(b, false); }
+            theme_widgets::set_chip_active(clicked, true);
         });
         chip_box.append(btn);
     }

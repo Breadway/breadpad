@@ -32,11 +32,11 @@ breadman          GTK4 note viewer / manager
 
 ### Classification
 
-Every note passes through a three-tier pipeline at capture time:
+Every note passes through a three-tier pipeline at capture time. **Tier 1 is the only tier that ships with breadpad** — the ONNX classifier model is not bundled, and Ollama is optional. Capture works without either.
 
-1. **Rule-based parser** — always runs first; handles time extraction ("at 7pm", "in 30 minutes", "tomorrow morning", "next Friday"), recurrence ("every Sunday at 9pm", "every weekday morning"), and strong type signals ("?" → question, "idea:" prefix → idea, action verbs → todo). High-confidence results skip the remaining tiers entirely.
-2. **Small local ONNX model** — runs when Tier 1 can't confidently assign a type. Responsible for type classification only; Tier 1's extracted time, recurrence rule, and cleaned body are always preserved.
-3. **Large local model via Ollama** — runs only when Tier 2 confidence falls below a configurable threshold. Communicates with a locally running Ollama instance over HTTP. If Ollama is unreachable, the Tier 2 result is used. No cloud APIs are involved.
+1. **Rule-based parser** — always runs first; handles time extraction ("at 7pm", "in 30 minutes", "tomorrow morning", "next Friday"), recurrence ("every Sunday at 9pm", "every weekday morning"), and strong type signals ("?" → question, "idea:" prefix → idea, action verbs → todo). High-confidence results skip the remaining tiers entirely. This is the default path; no model files required.
+2. **Small local ONNX model (optional, not shipped)** — runs when Tier 1 can't confidently assign a type *and* you have dropped in your own classifier. Responsible for type classification only; Tier 1's extracted time, recurrence rule, and cleaned body are always preserved.
+3. **Large local model via Ollama (optional)** — runs only when Tier 2 confidence falls below a configurable threshold. Communicates with a locally running Ollama instance over HTTP. If Ollama is unreachable, the previous tier's result is used. No cloud APIs are involved.
 
 Manual override always available — the AI-assigned type is shown as a chip you can tap to change before saving.
 
@@ -104,11 +104,11 @@ Always runs. Handles:
 
 Returns a calibrated confidence. If ≥ 0.82, Tiers 2 and 3 are skipped.
 
-#### Tier 2 — Small local ONNX model
+#### Tier 2 — Small local ONNX model (optional, not shipped)
 
-Runs when Tier 1 confidence is below threshold. Responsible for **type classification only** — Tier 1's extracted time, recurrence rule, and cleaned body are always preserved.
+Runs when Tier 1 confidence is below threshold **and** a compatible `classifier.onnx` + `tokenizer.json` are present. Responsible for **type classification only** — Tier 1's extracted time, recurrence rule, and cleaned body are always preserved.
 
-Invoked via `ort` (ONNX Runtime Rust bindings, `load-dynamic`) on the CPU. Requires an external `libonnxruntime.so`; set `model.ort_dylib_path` in `breadpad.toml` or let breadpad auto-discover it via `ORT_DYLIB_PATH`.
+Invoked via `ort` (ONNX Runtime Rust bindings, `load-dynamic`) on the CPU. Requires an external `libonnxruntime.so`; set `model.ort_dylib_path` in `breadpad.toml` or let breadpad auto-discover it via `ORT_DYLIB_PATH`. Without a model file or runtime library, Tier 2 is skipped and Tier 1 (plus optional Tier 3) still works.
 
 #### Tier 3 — Large local model via Ollama
 
@@ -123,7 +123,7 @@ If Ollama is unreachable or returns an invalid response, breadpad logs a warning
 ~/.local/share/breadpad/model/tokenizer.json
 ```
 
-breadpad ships without a bundled model. Drop a compatible ONNX classifier and `tokenizer.json` at those paths, then configure `model.ort_dylib_path` to point at your ONNX Runtime library.
+**breadpad does not ship a classifier model.** Tier 1 rules work with no extra files. If you want Tier 2, drop a compatible ONNX classifier and `tokenizer.json` at those paths and point `model.ort_dylib_path` at your ONNX Runtime library.
 
 ```bash
 breadpad model-info   # shows active EP and model path
@@ -138,7 +138,7 @@ breadpad model-info   # shows active EP and model path
 - D-Bus session bus (for notifications)
 - systemd user session (for timer-backed reminders)
 - Rust 1.80+
-- **Tier 2 (ONNX classifier):** An external `libonnxruntime.so`. Set `model.ort_dylib_path` in `breadpad.toml`, or set `ORT_DYLIB_PATH` in your environment. Without a library, Tier 2 is disabled; Tier 1 + 3 still work.
+- **Tier 2 (ONNX classifier, optional):** A model you supply yourself (`classifier.onnx` + `tokenizer.json`) and an external `libonnxruntime.so`. Set `model.ort_dylib_path` in `breadpad.toml`, or set `ORT_DYLIB_PATH` in your environment. Neither the model nor the runtime is shipped. Without them, Tier 2 is disabled; Tier 1 (and Tier 3, if Ollama is running) still work.
 - **Tier 3 only (optional):** [Ollama](https://ollama.com) running locally with your chosen model pulled (`ollama pull llama3.2:3b`). Tier 3 is silently skipped if Ollama is not running.
 
 ---
@@ -146,15 +146,19 @@ breadpad model-info   # shows active EP and model path
 ## Installation
 
 ```bash
-git clone https://github.com/breadway/breadpad
+git clone https://git.breadway.dev/Breadway/breadpad
 cd breadpad
 cargo build --release
 cp target/release/breadpad ~/.local/bin/
 cp target/release/breadman ~/.local/bin/
+```
 
-# Place your ONNX classifier and tokenizer in the model directory
+That's enough for capture + viewing. Tier 1 classification works out of the box. The ONNX classifier is **not** included — only add it if you want Tier 2:
+
+```bash
 mkdir -p ~/.local/share/breadpad/model
-# Then set model.ort_dylib_path in breadpad.toml to your libonnxruntime.so
+# Drop your own classifier.onnx + tokenizer.json in that directory, then
+# set model.ort_dylib_path in breadpad.toml to your libonnxruntime.so
 ```
 
 On Arch Linux, install GTK4 dependencies first:
@@ -245,10 +249,10 @@ breadpad --no-classify
 breadpad --status
 ```
 
-Hyprland keybind:
+Hyprland keybind (BOS default is Super+U; bind whatever you want):
 
 ```
-bind = $mainMod, N, exec, breadpad
+bind = $mainMod, U, exec, breadpad
 ```
 
 ### breadman (viewer)

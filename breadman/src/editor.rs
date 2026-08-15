@@ -3,7 +3,6 @@
 //! flagged in design review as the weakest surface in the app). AdwDialog
 //! gives us the scrim, the title, and correct modal anchoring for free.
 
-use bread_theme::adw;
 use breadpad_shared::{
     parser::parse_rule_based,
     scheduler::Scheduler,
@@ -54,25 +53,25 @@ pub fn open_editor(
         .margin_end(16)
         .build();
 
-    let group = adw::preferences_group("Details", None);
+    let group = libadwaita::PreferencesGroup::builder().title("Details").build();
 
     let body_row = libadwaita::EntryRow::builder().title("Body").build();
     body_row.set_text(&note.body);
     group.add(&body_row);
 
-    let type_row = adw::action_row("Type", None);
+    let type_row = libadwaita::ActionRow::builder().title("Type").build();
     let type_pill_box = gtk4::Box::builder().orientation(gtk4::Orientation::Horizontal).spacing(4).valign(gtk4::Align::Center).build();
     let selected_type: Rc<RefCell<String>> = Rc::new(RefCell::new(note.note_type.as_str().to_string()));
-    let type_pills: Vec<(gtk4::Button, &'static str)> = NoteType::all_builtin().iter().map(|&name| (bread_theme::gtk::chip(name), name)).collect();
+    let type_pills: Vec<(gtk4::Button, &'static str)> = NoteType::all_builtin().iter().map(|&name| (crate::theme_widgets::chip(name), name)).collect();
     for (btn, name) in &type_pills {
-        bread_theme::gtk::set_chip_active(btn, *name == selected_type.borrow().as_str());
+        crate::theme_widgets::set_chip_active(btn, *name == selected_type.borrow().as_str());
         let sel = selected_type.clone();
         let name = *name;
         let all_btns: Vec<gtk4::Button> = type_pills.iter().map(|(b, _)| b.clone()).collect();
         btn.connect_clicked(move |clicked| {
             *sel.borrow_mut() = name.to_string();
-            for b in &all_btns { bread_theme::gtk::set_chip_active(b, false); }
-            bread_theme::gtk::set_chip_active(clicked, true);
+            for b in &all_btns { crate::theme_widgets::set_chip_active(b, false); }
+            crate::theme_widgets::set_chip_active(clicked, true);
         });
         type_pill_box.append(btn);
     }
