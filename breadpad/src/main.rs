@@ -8,6 +8,7 @@ use breadpad_shared::{
     store::Store,
     types::{Note, NoteType},
 };
+use bread_utils::bread_client::BreadClient;
 use gtk4::{glib, prelude::*};
 use gtk4_layer_shell::{Edge, KeyboardMode, Layer, LayerShell};
 use std::cell::RefCell;
@@ -15,6 +16,21 @@ use std::rc::Rc;
 use std::sync::{Arc, Once};
 
 mod screenshot;
+
+/// Sibling-app id in `bread_shared::apps::KNOWN_APPS`. Events are `bread.pad.*`.
+const APP_ID: &str = "pad";
+
+/// `bread.pad.captured` after a successful quick-capture save. Fire-and-forget:
+/// `BreadClient::emit` is a silent no-op when breadd is down or missing.
+fn emit_captured(id: &str) {
+    BreadClient::connect(APP_ID).emit("bread.pad.captured", serde_json::json!({ "id": id }));
+}
+
+/// `bread.pad.reminder.due` when `breadpad fire <id>` actually shows a reminder
+/// (the existing systemd-timer hook — not a new daemon). Same fail-silent emit.
+fn emit_reminder_due(id: &str) {
+    BreadClient::connect(APP_ID).emit("bread.pad.reminder.due", serde_json::json!({ "id": id }));
+}
 
 static ORT_INIT: Once = Once::new();
 
@@ -330,6 +346,8 @@ fn cmd_fire(id: &str, cfg: &Config) -> Result<()> {
     if !Scheduler::fire(&note, cfg.reminders.missed_grace_minutes) {
         return Ok(());
     }
+
+    emit_reminder_due(&note.id);
 
     // Schedule next recurrence before showing UI
     if note.rrule.is_some() {
@@ -911,6 +929,7 @@ fn save_note_classified(
         tracing::error!("failed to save note: {}", e);
         return;
     }
+    emit_captured(&note.id);
     if note.time.is_some() {
         if let Err(e) = Scheduler::schedule(&note) {
             tracing::warn!("failed to schedule reminder: {}", e);
