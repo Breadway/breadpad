@@ -451,6 +451,7 @@ fn build_reminder_window(
     window.set_layer(Layer::Overlay);
     window.set_keyboard_mode(KeyboardMode::Exclusive);
     window.auto_exclusive_zone_enable();
+    breadpad_shared::theme::bind_window(&window);
 
     apply_css(&cfg);
 
@@ -753,6 +754,7 @@ fn build_window(
     window.set_anchor(Edge::Bottom, false);
     window.set_anchor(Edge::Left, false);
     window.set_anchor(Edge::Right, false);
+    breadpad_shared::theme::bind_window(&window);
 
     apply_css(&cfg);
 

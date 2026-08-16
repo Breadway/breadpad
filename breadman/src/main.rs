@@ -374,6 +374,7 @@ fn build_app_window(
         .default_width(960)
         .default_height(640)
         .build();
+    bread_theme::gtk::bind_window_auto(&window);
 
     let hbox = gtk4::Box::builder()
         .orientation(gtk4::Orientation::Horizontal)
@@ -616,6 +617,7 @@ fn show_add_note_window(parent: &gtk4::ApplicationWindow, state: AppState, prese
         .modal(true)
         .default_width(500)
         .build();
+    bread_theme::gtk::bind_window_auto(&win);
 
     let vbox = gtk4::Box::builder()
         .orientation(gtk4::Orientation::Vertical)

@@ -13,6 +13,11 @@ pub fn apply_live() {
     });
 }
 
+/// Bind a window to the palette of the monitor it is rendered on.
+pub fn bind_window(window: &impl gtk4::prelude::IsA<gtk4::Native>) {
+    bread_theme::gtk::bind_window_auto(window);
+}
+
 /// Generate the full breadpad/breadman CSS string. The base — `@define-color`
 /// palette, fonts, and generic widget styling — comes from the shared
 /// `bread_theme::stylesheet`, so breadpad and breadman look identical to the
