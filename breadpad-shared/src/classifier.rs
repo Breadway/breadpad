@@ -2,6 +2,8 @@ use crate::ai::OllamaClient;
 use crate::config::OllamaConfig;
 use crate::parser::parse_rule_based;
 use crate::types::{ClassificationResult, NoteType};
+use bread_onnx::{build_session, Provider};
+use ort::session::builder::GraphOptimizationLevel;
 use std::path::PathBuf;
 
 /// Minimum Tier 1 confidence needed to skip Tier 2 entirely.
@@ -16,7 +18,7 @@ pub enum ExecutionProvider {
 impl ExecutionProvider {
     pub fn as_str(&self) -> &str {
         match self {
-            ExecutionProvider::Gpu => "ROCm (iGPU)",
+            ExecutionProvider::Gpu => "MIGraphX (iGPU)",
             ExecutionProvider::Cpu => "CPU",
         }
     }
@@ -107,9 +109,7 @@ impl Classifier {
 
         // ── Tier 2 ───────────────────────────────────────────────────────────
         // ONNX model classifies the type only; Tier 1's time/rrule/body are kept.
-        let tier2 = if let (Some(session), Some(tokenizer)) =
-            (&mut self.session, &self.tokenizer)
-        {
+        let tier2 = if let (Some(session), Some(tokenizer)) = (&mut self.session, &self.tokenizer) {
             match run_onnx(session, tokenizer, text) {
                 Ok(r) => {
                     tracing::debug!("Tier 2: {:?} conf={:.2}", r.note_type, r.confidence);
@@ -163,9 +163,18 @@ impl Classifier {
 // entailment score across all five passes.
 const HYPOTHESES: [(&str, &str); 5] = [
     ("This note is a task or action item to complete.", "todo"),
-    ("This note is a reminder with a specific time or deadline.", "reminder"),
-    ("This note is an idea, suggestion, or creative thought.", "idea"),
-    ("This note is a general observation or piece of information.", "note"),
+    (
+        "This note is a reminder with a specific time or deadline.",
+        "reminder",
+    ),
+    (
+        "This note is an idea, suggestion, or creative thought.",
+        "idea",
+    ),
+    (
+        "This note is a general observation or piece of information.",
+        "note",
+    ),
     ("This note is a question that needs an answer.", "question"),
 ];
 
@@ -184,15 +193,17 @@ fn run_onnx(
             .map_err(|e| anyhow::anyhow!("tokenize: {}", e))?;
 
         let ids: Vec<i64> = encoding.get_ids().iter().map(|&x| x as i64).collect();
-        let mask: Vec<i64> = encoding.get_attention_mask().iter().map(|&x| x as i64).collect();
+        let mask: Vec<i64> = encoding
+            .get_attention_mask()
+            .iter()
+            .map(|&x| x as i64)
+            .collect();
         let len = ids.len();
 
-        let ids_tensor = ort::value::Tensor::<i64>::from_array(
-            (vec![1i64, len as i64], ids)
-        ).map_err(|e| anyhow::anyhow!("ids tensor: {}", e))?;
-        let mask_tensor = ort::value::Tensor::<i64>::from_array(
-            (vec![1i64, len as i64], mask)
-        ).map_err(|e| anyhow::anyhow!("mask tensor: {}", e))?;
+        let ids_tensor = ort::value::Tensor::<i64>::from_array((vec![1i64, len as i64], ids))
+            .map_err(|e| anyhow::anyhow!("ids tensor: {}", e))?;
+        let mask_tensor = ort::value::Tensor::<i64>::from_array((vec![1i64, len as i64], mask))
+            .map_err(|e| anyhow::anyhow!("mask tensor: {}", e))?;
 
         let inputs = ort::inputs![
             "input_ids" => ids_tensor,
@@ -207,10 +218,7 @@ fn run_onnx(
             .map_err(|e| anyhow::anyhow!("extract logits: {}", e))?;
         let (_, logits_slice) = logits;
 
-        entailment_scores[i] = logits_slice
-            .get(ENTAILMENT_IDX)
-            .copied()
-            .unwrap_or(0.0);
+        entailment_scores[i] = logits_slice.get(ENTAILMENT_IDX).copied().unwrap_or(0.0);
     }
 
     let best_idx = entailment_scores
@@ -243,42 +251,30 @@ fn softmax_single(logits: &[f32], idx: usize) -> f32 {
     exps[idx] / sum
 }
 
-fn try_load_session(
-    path: &std::path::Path,
-) -> (Option<ort::session::Session>, ExecutionProvider) {
-    // Try ROCm (iGPU) first, fall back to CPU.
-    let rocm_available = {
-        use ort::execution_providers::ExecutionProvider as _;
-        ort::ep::ROCm::default().is_available().unwrap_or(false)
-    };
-    if rocm_available {
-        match build_onnx_session(path, ort::ep::ROCm::default().build()) {
-            Ok(s) => {
-                tracing::info!("ONNX session loaded (ROCm iGPU)");
-                return (Some(s), ExecutionProvider::Gpu);
-            }
-            Err(e) => tracing::debug!("ROCm EP unavailable: {}; trying CPU", e),
-        }
-    }
-    match build_onnx_session(path, ort::ep::CPU::default().build()) {
+fn try_load_session(path: &std::path::Path) -> (Option<ort::session::Session>, ExecutionProvider) {
+    // WHY: distro onnxruntime-rocm is MIGraphX, not classic ROCm; bread-onnx
+    // appends CPU so a missing GPU EP does not disable Tier 2.
+    match build_session(
+        path,
+        GraphOptimizationLevel::Level3,
+        &[Provider::MiGraphX { device_id: 0 }],
+    ) {
         Ok(s) => {
-            tracing::info!("ONNX session loaded (CPU)");
-            (Some(s), ExecutionProvider::Cpu)
+            tracing::info!("ONNX session loaded (MIGraphX, CPU fallback)");
+            (Some(s), ExecutionProvider::Gpu)
         }
         Err(e) => {
-            tracing::warn!("failed to load ONNX session: {}; Tier 2 disabled", e);
-            (None, ExecutionProvider::Cpu)
+            tracing::debug!("MIGraphX session failed: {}; trying CPU", e);
+            match build_session(path, GraphOptimizationLevel::Level3, &[Provider::Cpu]) {
+                Ok(s) => {
+                    tracing::info!("ONNX session loaded (CPU)");
+                    (Some(s), ExecutionProvider::Cpu)
+                }
+                Err(e) => {
+                    tracing::warn!("failed to load ONNX session: {}; Tier 2 disabled", e);
+                    (None, ExecutionProvider::Cpu)
+                }
+            }
         }
     }
-}
-
-fn build_onnx_session(
-    path: &std::path::Path,
-    ep: ort::ep::ExecutionProviderDispatch,
-) -> anyhow::Result<ort::session::Session> {
-    let mut builder = ort::session::Session::builder()
-        .map_err(|e| anyhow::anyhow!("builder: {}", e))?
-        .with_execution_providers([ep])
-        .map_err(|e| anyhow::anyhow!("ep: {}", e))?;
-    builder.commit_from_file(path).map_err(|e| anyhow::anyhow!("load: {}", e))
 }

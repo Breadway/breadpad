@@ -15,7 +15,7 @@ breadpad-shared = { path = "../breadpad-shared" }
 bread-screenshots = { git = "https://git.breadway.dev/Breadway/bread-ecosystem", tag = "v0.7.2" }
 # Shared `--screenshot` pair validation + settle delay (`screenshot_cli`).
 bread-utils = { git = "https://git.breadway.dev/Breadway/bread-ecosystem", tag = "v0.7.2" }
-# `adw` implies `gtk`. Local chip/init shims remain in src/theme_widgets.rs.
+# `adw` implies `gtk` (`chip`, `set_chip_active`, `adw::init`).
 bread-theme = { git = "https://git.breadway.dev/Breadway/bread-ecosystem", tag = "v0.7.4", features = ["adw"] }
 libadwaita = { version = "0.9", features = ["v1_7"] }
 anyhow.workspace = true

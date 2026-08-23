@@ -62,16 +62,16 @@ pub fn open_editor(
     let type_row = libadwaita::ActionRow::builder().title("Type").build();
     let type_pill_box = gtk4::Box::builder().orientation(gtk4::Orientation::Horizontal).spacing(4).valign(gtk4::Align::Center).build();
     let selected_type: Rc<RefCell<String>> = Rc::new(RefCell::new(note.note_type.as_str().to_string()));
-    let type_pills: Vec<(gtk4::Button, &'static str)> = NoteType::all_builtin().iter().map(|&name| (crate::theme_widgets::chip(name), name)).collect();
+    let type_pills: Vec<(gtk4::Button, &'static str)> = NoteType::all_builtin().iter().map(|&name| (bread_theme::gtk::chip(name), name)).collect();
     for (btn, name) in &type_pills {
-        crate::theme_widgets::set_chip_active(btn, *name == selected_type.borrow().as_str());
+        bread_theme::gtk::set_chip_active(btn, *name == selected_type.borrow().as_str());
         let sel = selected_type.clone();
         let name = *name;
         let all_btns: Vec<gtk4::Button> = type_pills.iter().map(|(b, _)| b.clone()).collect();
         btn.connect_clicked(move |clicked| {
             *sel.borrow_mut() = name.to_string();
-            for b in &all_btns { crate::theme_widgets::set_chip_active(b, false); }
-            crate::theme_widgets::set_chip_active(clicked, true);
+            for b in &all_btns { bread_theme::gtk::set_chip_active(b, false); }
+            bread_theme::gtk::set_chip_active(clicked, true);
         });
         type_pill_box.append(btn);
     }

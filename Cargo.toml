@@ -24,9 +24,10 @@ chrono = { version = "0.4", features = ["serde"] }
 rrule = "0.12"
 tokio = { version = "1", features = ["full"] }
 zbus = { version = "4", default-features = false, features = ["tokio"] }
-ort = { version = "2.0.0-rc.12", default-features = false, features = ["std", "ndarray", "tracing", "api-24", "rocm", "load-dynamic"] }
-ndarray = "0.16"
-tokenizers = { version = "0.21", default-features = false, features = ["http", "fancy-regex"] }
+# WHY: bread-onnx's Provider enum references every EP type, so those ort
+# features must be on in the consumer even if breadpad only requests MIGraphX.
+ort = { version = "2.0.0-rc.12", default-features = false, features = ["std", "tracing", "api-24", "migraphx", "cuda", "openvino", "vitis", "load-dynamic"] }
+tokenizers = { version = "0.23", default-features = false, features = ["http", "fancy-regex"] }
 gtk4 = { version = "0.11", features = ["v4_12"] }
 gtk4-layer-shell = "0.8"
 hyprland = "0.4.0-beta.3"

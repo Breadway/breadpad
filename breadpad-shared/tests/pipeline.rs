@@ -9,12 +9,18 @@ use breadpad_shared::classifier::Classifier;
 use breadpad_shared::store::Store;
 use breadpad_shared::types::{Note, NoteType};
 use chrono::Timelike;
+use std::path::PathBuf;
 use tempfile::TempDir;
 
 // Mirrors commit_note() in breadpad/src/main.rs.
 // `user_type` is the type the user selected in the chip row (default = NoteType::Note).
 fn capture(store: &Store, text: &str, user_type: NoteType) -> Note {
-    let mut classifier = Classifier::load("08:00");
+    // WHY: pipeline tests cover classify→save→reload, not a host ONNX model.
+    let mut classifier = Classifier::load_with_paths(
+        "08:00",
+        PathBuf::from("/nonexistent/classifier.onnx"),
+        PathBuf::from("/nonexistent/tokenizer.json"),
+    );
     let result = classifier.classify(text);
 
     let mut note = Note::new(text.into(), user_type.clone(), None);
@@ -61,7 +67,11 @@ fn todo_note_appears_in_store() {
 #[test]
 fn idea_note_appears_in_store() {
     let (dir, store) = setup();
-    capture(&store, "what if we added dark mode", NoteType::from_str("note"));
+    capture(
+        &store,
+        "what if we added dark mode",
+        NoteType::from_str("note"),
+    );
 
     let notes = breadman_store(&dir).load_all().unwrap();
     assert_eq!(notes.len(), 1);
@@ -71,7 +81,11 @@ fn idea_note_appears_in_store() {
 #[test]
 fn question_note_appears_in_store() {
     let (dir, store) = setup();
-    capture(&store, "why does the cache miss on cold start?", NoteType::from_str("note"));
+    capture(
+        &store,
+        "why does the cache miss on cold start?",
+        NoteType::from_str("note"),
+    );
 
     let notes = breadman_store(&dir).load_all().unwrap();
     assert_eq!(notes.len(), 1);
@@ -97,7 +111,10 @@ fn reminder_has_time_set() {
 
     let notes = breadman_store(&dir).load_all().unwrap();
     assert_eq!(notes[0].note_type, NoteType::Reminder);
-    assert!(notes[0].time.is_some(), "reminder should have a scheduled time");
+    assert!(
+        notes[0].time.is_some(),
+        "reminder should have a scheduled time"
+    );
     let local: chrono::DateTime<chrono::Local> = notes[0].time.unwrap().into();
     assert_eq!(local.hour(), 18);
 }
@@ -108,14 +125,21 @@ fn reminder_body_has_time_stripped() {
     capture(&store, "call mum at 6pm", NoteType::from_str("note"));
 
     let notes = breadman_store(&dir).load_all().unwrap();
-    assert!(!notes[0].body.contains("6pm"), "time phrase should be removed from body");
+    assert!(
+        !notes[0].body.contains("6pm"),
+        "time phrase should be removed from body"
+    );
     assert!(notes[0].body.contains("call mum"));
 }
 
 #[test]
 fn in_duration_reminder_has_time() {
     let (dir, store) = setup();
-    capture(&store, "check on the build in 30 minutes", NoteType::from_str("note"));
+    capture(
+        &store,
+        "check on the build in 30 minutes",
+        NoteType::from_str("note"),
+    );
 
     let notes = breadman_store(&dir).load_all().unwrap();
     assert_eq!(notes[0].note_type, NoteType::Reminder);
@@ -127,7 +151,11 @@ fn in_duration_reminder_has_time() {
 #[test]
 fn recurring_reminder_has_rrule() {
     let (dir, store) = setup();
-    capture(&store, "standup every monday at 9am", NoteType::from_str("note"));
+    capture(
+        &store,
+        "standup every monday at 9am",
+        NoteType::from_str("note"),
+    );
 
     let notes = breadman_store(&dir).load_all().unwrap();
     assert_eq!(notes[0].note_type, NoteType::Reminder);
@@ -139,11 +167,20 @@ fn recurring_reminder_has_rrule() {
 #[test]
 fn daily_reminder_has_rrule() {
     let (dir, store) = setup();
-    capture(&store, "drink water every day at 8am", NoteType::from_str("note"));
+    capture(
+        &store,
+        "drink water every day at 8am",
+        NoteType::from_str("note"),
+    );
 
     let notes = breadman_store(&dir).load_all().unwrap();
     assert_eq!(notes[0].note_type, NoteType::Reminder);
-    assert!(notes[0].rrule.as_ref().unwrap().as_str().contains("FREQ=DAILY"));
+    assert!(notes[0]
+        .rrule
+        .as_ref()
+        .unwrap()
+        .as_str()
+        .contains("FREQ=DAILY"));
 }
 
 // ---- user-forced type is respected ----
@@ -155,7 +192,11 @@ fn user_selected_type_overrides_classifier() {
     capture(&store, "fix the login bug", NoteType::Idea);
 
     let notes = breadman_store(&dir).load_all().unwrap();
-    assert_eq!(notes[0].note_type, NoteType::Idea, "user chip selection should win over classifier");
+    assert_eq!(
+        notes[0].note_type,
+        NoteType::Idea,
+        "user chip selection should win over classifier"
+    );
 }
 
 #[test]
@@ -173,7 +214,11 @@ fn user_selected_reminder_overrides_classifier() {
 fn three_notes_all_visible_to_breadman() {
     let (dir, store) = setup();
     capture(&store, "buy milk", NoteType::from_str("note"));
-    capture(&store, "what if we rewrote in Zig", NoteType::from_str("note"));
+    capture(
+        &store,
+        "what if we rewrote in Zig",
+        NoteType::from_str("note"),
+    );
     capture(&store, "team standup went well", NoteType::from_str("note"));
 
     let notes = breadman_store(&dir).load_all().unwrap();
