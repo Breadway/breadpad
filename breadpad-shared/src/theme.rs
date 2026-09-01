@@ -14,8 +14,19 @@ pub fn apply_live() {
 }
 
 /// Bind a window to the palette of the monitor it is rendered on.
+///
+/// [`bind_window_auto`] alone attaches only the per-output *shared* sheet, so
+/// breadpad/breadman's own component rules (which resolve `@bg`, `@accent`,
+/// `@blue`, … from the display-global `@define-color` block) keep the
+/// session-global palette on a monitor whose wallpaper differs. Passing
+/// [`build_css`] to `bind_window_auto_with_app_css` rebuilds the app sheet
+/// against the per-output palette and inlines those names to hex for the bound
+/// widget tree. [`apply_live`] stays as the display-level / SIGHUP fallback.
 pub fn bind_window(window: &impl gtk4::prelude::IsA<gtk4::Native>) {
-    bread_theme::gtk::bind_window_auto(window);
+    bread_theme::gtk::bind_window_auto_with_app_css(window, |palette| {
+        let user_css = std::fs::read_to_string(crate::config::style_css_path()).ok();
+        build_css(palette, user_css.as_deref())
+    });
 }
 
 /// Generate the full breadpad/breadman CSS string. The base — `@define-color`
