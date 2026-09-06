@@ -3,7 +3,7 @@ use breadpad_shared::types::NoteType;
 use chrono::Timelike;
 use std::path::PathBuf;
 
-/// Rule-based path only — a present `~/.local/share/breadpad/model` must not
+/// Rule-based path only: a present `~/.local/share/breadpad/model` must not
 /// change these assertions.
 fn cl() -> Classifier {
     Classifier::load_with_paths(
@@ -16,7 +16,7 @@ fn cl() -> Classifier {
 #[test]
 fn active_provider_is_valid() {
     // The active provider depends on the host: a machine with the ONNX model present and
-    // a working MIGraphX iGPU loads `Gpu`, otherwise `Cpu`. Either is valid — but when no
+    // a working MIGraphX iGPU loads `Gpu`, otherwise `Cpu`. Either is valid, but when no
     // model is available we must be on CPU (no session => no GPU EP in use).
     let c = Classifier::load("08:00");
     assert!(matches!(

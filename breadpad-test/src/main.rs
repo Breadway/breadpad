@@ -96,7 +96,7 @@ struct CorpusEntry {
     input: String,
     #[serde(default)]
     expected_type: Option<String>,
-    /// Expected time as HH:MM — date component is ignored so tests are not date-sensitive
+    /// Expected time as HH:MM: date component is ignored so tests are not date-sensitive
     #[serde(default)]
     expected_time: Option<String>,
     /// Expected body text (checked as substring of actual body)
@@ -457,7 +457,7 @@ fn cmd_edit(index: usize, corpus_path: &Path) -> Result<()> {
 
 fn init_ort() {
     use std::path::PathBuf;
-    // Prefer the system CPU-only library for testing — no Ryzen AI startup overhead.
+    // Prefer the system CPU-only library for testing: no Ryzen AI startup overhead.
     // Fall back to the Ryzen AI SDK library if the system one isn't installed.
     let candidates: Vec<PathBuf> = {
         let mut v = vec![

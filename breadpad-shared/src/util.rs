@@ -4,9 +4,9 @@ use chrono::{DateTime, Duration, Local, LocalResult, NaiveDateTime, TimeZone, Ut
 ///
 /// `NaiveDateTime::and_local_timezone` (and `Local.from_local_datetime`) returns a
 /// `LocalResult`, which is not always `Single`:
-/// - `Single` — the normal case.
-/// - `Ambiguous` (a fall-back hour that occurs twice) — pick the earliest instant.
-/// - `None` (a spring-forward gap where the wall-clock time never happens) — advance
+/// - `Single`: the normal case.
+/// - `Ambiguous` (a fall-back hour that occurs twice): pick the earliest instant.
+/// - `None` (a spring-forward gap where the wall-clock time never happens): advance
 ///   an hour at a time until a valid instant is found, then fall back to treating the
 ///   naive value as UTC.
 ///

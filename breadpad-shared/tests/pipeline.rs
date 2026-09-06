@@ -43,7 +43,7 @@ fn setup() -> (TempDir, Store) {
     (dir, store)
 }
 
-// Open a second Store handle pointing at the same directory — this simulates
+// Open a second Store handle pointing at the same directory: this simulates
 // breadman reading from the path that breadpad wrote to.
 fn breadman_store(dir: &TempDir) -> Store {
     Store::from_dir(dir.path()).unwrap()

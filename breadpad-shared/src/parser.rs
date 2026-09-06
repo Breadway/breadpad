@@ -30,7 +30,7 @@ fn patterns() -> &'static Patterns {
         ).unwrap(),
         tomorrow: Regex::new(r"(?i)\btomorrow(?:\s+morning|\s+evening|\s+afternoon)?").unwrap(),
         next_weekday: Regex::new(r"(?i)\bnext\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)").unwrap(),
-        // "tonight" or "this evening" — maps to a fixed 21:00 anchor
+        // "tonight" or "this evening": maps to a fixed 21:00 anchor
         tonight: Regex::new(r"(?i)\b(?:tonight|this\s+evening)\b").unwrap(),
         // "every weekday [at H:MM|morning|afternoon|evening]" → Mon–Fri RRULE
         every_weekdays: Regex::new(
@@ -230,7 +230,7 @@ pub fn parse_rule_based(text: &str, default_morning: &str) -> ClassificationResu
             let full_match = caps.get(0).unwrap().as_str();
             cleaned = cleaned.replacen(full_match, "", 1).trim().to_string();
         }
-        // One-off: word-form durations — "in an hour", "in a couple of hours", "in half an hour"
+        // One-off: word-form durations, "in an hour", "in a couple of hours", "in half an hour"
         else if let Some(m) = p.in_duration_word.find(text) {
             let phrase = m.as_str().to_lowercase();
             let delta = if phrase.contains("half") {
@@ -267,7 +267,7 @@ pub fn parse_rule_based(text: &str, default_morning: &str) -> ClassificationResu
             let full_match = caps.get(0).unwrap().as_str();
             cleaned = cleaned.replacen(full_match, "", 1).trim().to_string();
         }
-        // One-off: "tonight" / "this evening" — anchors to 21:00
+        // One-off: "tonight" / "this evening"; anchors to 21:00
         else if let Some(m) = p.tonight.find(text) {
             let local = Local::now();
             let anchor = NaiveTime::from_hms_opt(21, 0, 0).unwrap();
@@ -310,7 +310,7 @@ pub fn parse_rule_based(text: &str, default_morning: &str) -> ClassificationResu
             NoteType::Todo | NoteType::Question => 0.88, // strong lexical anchors
             NoteType::Idea => 0.84,
             NoteType::Reminder => 0.95, // shouldn't reach here without time
-            NoteType::Note => 0.45,     // no signal — Tier 2 should weigh in
+            NoteType::Note => 0.45,     // no signal: Tier 2 should weigh in
             _ => 0.60,
         }
     };

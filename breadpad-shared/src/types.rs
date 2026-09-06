@@ -15,7 +15,7 @@ pub enum NoteType {
 }
 
 impl NoteType {
-    // Not std::str::FromStr — infallible, returns Self directly rather than
+    // Not std::str::FromStr: infallible, returns Self directly rather than
     // Result, and used across 30+ call sites as NoteType::from_str(..).
     #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Self {
@@ -89,7 +89,7 @@ impl Note {
     pub fn new(body: String, note_type: NoteType, workspace: Option<String>) -> Self {
         Note {
             // 12 hex chars (~48 bits) keeps IDs short and human-typable while making
-            // collisions vanishingly unlikely — important because update/delete/get_by_id
+            // collisions vanishingly unlikely: important because update/delete/get_by_id
             // all match notes purely by this id.
             id: uuid::Uuid::new_v4()
                 .simple()

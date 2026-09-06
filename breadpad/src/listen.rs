@@ -30,7 +30,7 @@ pub fn run() -> Result<()> {
     }
 }
 
-/// Reacts to `bread.command.pad.*` verbs. Only `capture` is honored today —
+/// Reacts to `bread.command.pad.*` verbs. Only `capture` is honored today:
 /// other verbs are ignored, not stubbed as no-ops that pretend to succeed.
 fn handle_command(event: &BreadEvent) {
     let Some(verb) = command_verb(&event.event) else {
