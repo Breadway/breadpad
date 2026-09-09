@@ -1,13 +1,12 @@
 use anyhow::Result;
 use breadpad_shared::{
     config::Config,
-    parser::parse_rule_based,
-    scheduler::Scheduler,
     store::Store,
-    types::{Note, NoteType, RecurrenceRule},
+    types::{Note, NoteType},
 };
 use chrono::Local;
 use gtk4::{glib, prelude::*};
+use libadwaita::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -167,19 +166,20 @@ impl AppState {
 
 /// Run `work` on a background thread, then call `then` on the GTK main thread.
 ///
-/// `work` must be `Send + 'static` (moves into the thread).
-/// `then` only needs `'static`: it can capture GTK widgets and `Rc<RefCell<...>>`.
-///
-/// Uses `glib::MainContext::spawn_local` (called from the main thread) with a
-/// `futures_channel::oneshot` to bridge the blocking result back to the async future.
-fn spawn_bg<F, T, C>(work: F, then: C)
+/// `work` must be `Send + 'static` (moves into the thread); `then` only needs
+/// `'static`, so it can capture GTK widgets and `Rc<RefCell<...>>`. Uses
+/// `glib::MainContext::spawn_local` with a `futures_channel::oneshot` to
+/// bridge the blocking result back to the async future.
+pub(crate) fn spawn_bg<F, T, C>(work: F, then: C)
 where
     F: FnOnce() -> T + Send + 'static,
     T: Send + 'static,
     C: FnOnce(T) + 'static,
 {
     let (tx, rx) = futures_channel::oneshot::channel::<T>();
-    std::thread::spawn(move || { let _ = tx.send(work()); });
+    std::thread::spawn(move || {
+        let _ = tx.send(work());
+    });
     glib::MainContext::default().spawn_local(async move {
         if let Ok(result) = rx.await {
             then(result);
@@ -609,189 +609,41 @@ fn build_note_list(
 
 // ── Add note window ───────────────────────────────────────────────────────────
 
-fn show_add_note_window(parent: &gtk4::ApplicationWindow, state: AppState, preselect: NoteType, on_build: impl FnOnce(&gtk4::Window)) {
-    let win = gtk4::Window::builder()
-        .title("New Note")
-        .transient_for(parent)
-        .modal(true)
-        .default_width(500)
-        .build();
-    breadpad_shared::theme::bind_window(&win);
+/// Open the "New Note" dialog. Thin wrapper over [`editor::open_new_note`]
+/// so the New Note and Edit Note surfaces are one and the same (PAD-3);
+/// this just wires the shared `AppState` refresh into its callbacks and
+/// presents the dialog against `parent`.
+///
+/// `on_build` runs against the built-but-not-yet-presented dialog, for
+/// screenshot mode (which must connect to `map` before `present`).
+fn show_add_note_window(
+    parent: &gtk4::ApplicationWindow,
+    state: AppState,
+    preselect: NoteType,
+    on_build: impl FnOnce(&libadwaita::Dialog),
+) {
+    let store = state.write_store();
+    let morning = state.cfg.borrow().reminders.default_morning.clone();
+    let default_type = state.cfg.borrow().settings.default_type.clone();
 
-    let vbox = gtk4::Box::builder()
-        .orientation(gtk4::Orientation::Vertical)
-        .spacing(10)
-        .margin_top(16)
-        .margin_bottom(16)
-        .margin_start(16)
-        .margin_end(16)
-        .build();
+    let state_done = state.clone();
+    let state_err = state.clone();
+    let dialog = editor::open_new_note(
+        preselect,
+        store,
+        morning,
+        default_type,
+        Rc::new(move |fresh: Vec<Note>| {
+            *state_done.notes.borrow_mut() = fresh;
+            rebuild_stack(&state_done);
+            let active = state_done.active_view.borrow().clone();
+            state_done.stack.set_visible_child_name(&active);
+        }),
+        Rc::new(move |e: String| state_err.log_error(e)),
+    );
 
-    vbox.append(&gtk4::Label::builder().label("Body").xalign(0.0).build());
-    let body_entry = gtk4::Entry::builder()
-        .placeholder_text("What's on your mind?")
-        .hexpand(true)
-        .build();
-    vbox.append(&body_entry);
-
-    // Type pills: same chip widget the editor dialog and settings screen
-    // use, instead of three different type-picker widgets across the app.
-    vbox.append(&gtk4::Label::builder().label("Type").xalign(0.0).build());
-    let chip_box = gtk4::Box::builder()
-        .orientation(gtk4::Orientation::Horizontal)
-        .spacing(4)
-        .build();
-    let selected_type: Rc<RefCell<NoteType>> = Rc::new(RefCell::new(preselect.clone()));
-    let chips: Vec<(gtk4::Button, NoteType)> = NoteType::all_builtin()
-        .iter()
-        .map(|&name| (bread_theme::gtk::chip(name), NoteType::from_str(name)))
-        .collect();
-    for (btn, nt) in &chips {
-        bread_theme::gtk::set_chip_active(btn, *nt == preselect);
-        let sel = selected_type.clone();
-        let nt_c = nt.clone();
-        let all_btns: Vec<gtk4::Button> = chips.iter().map(|(b, _)| b.clone()).collect();
-        btn.connect_clicked(move |clicked| {
-            *sel.borrow_mut() = nt_c.clone();
-            for b in &all_btns { bread_theme::gtk::set_chip_active(b, false); }
-            bread_theme::gtk::set_chip_active(clicked, true);
-        });
-        chip_box.append(btn);
-    }
-    vbox.append(&chip_box);
-
-    vbox.append(&gtk4::Label::builder().label("Time (optional)").xalign(0.0).build());
-    let time_entry = gtk4::Entry::builder()
-        .placeholder_text(editor::TIME_PLACEHOLDER)
-        .hexpand(true)
-        .build();
-    vbox.append(&time_entry);
-
-    vbox.append(&gtk4::Label::builder().label("Recurrence (optional)").xalign(0.0).build());
-    let rrule_entry = gtk4::Entry::builder()
-        .placeholder_text(editor::RRULE_PLACEHOLDER)
-        .hexpand(true)
-        .build();
-    vbox.append(&rrule_entry);
-
-    let status_label = gtk4::Label::builder()
-        .label("")
-        .xalign(0.0)
-        .css_classes(["dim-label"])
-        .build();
-    vbox.append(&status_label);
-
-    let btn_row = gtk4::Box::builder()
-        .orientation(gtk4::Orientation::Horizontal)
-        .spacing(8)
-        .build();
-    let cancel_btn = gtk4::Button::builder().label("Cancel").build();
-    let add_btn = gtk4::Button::builder()
-        .label("Add Note")
-        .css_classes(["confirm-button"])
-        .build();
-    btn_row.append(&gtk4::Box::builder().hexpand(true).build());
-    btn_row.append(&cancel_btn);
-    btn_row.append(&add_btn);
-    vbox.append(&btn_row);
-
-    win.set_child(Some(&vbox));
-
-    // Cancel
-    {
-        let win_c = win.clone();
-        cancel_btn.connect_clicked(move |_| win_c.close());
-    }
-
-    // Shared add-note logic: called by both the button and the Enter key.
-    let do_add: Rc<dyn Fn()> = Rc::new({
-        let win = win.clone();
-        let state = state.clone();
-        let body_entry = body_entry.clone();
-        let time_entry = time_entry.clone();
-        let rrule_entry = rrule_entry.clone();
-        let selected_type = selected_type.clone();
-        let status_label = status_label.clone();
-
-        move || {
-            let body_text = body_entry.text().to_string();
-            if body_text.trim().is_empty() {
-                status_label.set_label("Body is required.");
-                return;
-            }
-
-            let morning = state.cfg.borrow().reminders.default_morning.clone();
-            let parsed = parse_rule_based(&body_text, &morning);
-            let user_type = selected_type.borrow().clone();
-            let default_type = NoteType::from_str(&state.cfg.borrow().settings.default_type);
-
-            let mut note = Note::new(parsed.body.clone(), user_type.clone(), None);
-            if user_type == default_type {
-                note.note_type = parsed.note_type;
-            }
-            note.time = parsed.time;
-            note.rrule = parsed.rrule;
-
-            let time_str = time_entry.text().to_string();
-            if !time_str.trim().is_empty() {
-                let tp = parse_rule_based(&time_str, &morning);
-                if tp.time.is_some() { note.time = tp.time; }
-                if tp.rrule.is_some() { note.rrule = tp.rrule; }
-            }
-
-            let rrule_str = rrule_entry.text().to_string();
-            if !rrule_str.trim().is_empty() {
-                note.rrule = Some(RecurrenceRule::new(rrule_str));
-            }
-
-            let store = state.write_store();
-            win.close();
-
-            let state_bg = state.clone();
-            spawn_bg(
-                move || -> anyhow::Result<Vec<Note>> {
-                    store.save_note(&note)?;
-                    if note.time.is_some() || note.rrule.is_some() {
-                        if let Err(e) = Scheduler::cancel(&note.id) {
-                            tracing::warn!("cancel before schedule: {}", e);
-                        }
-                        Scheduler::schedule(&note)?;
-                    }
-                    store.load_all()
-                },
-                move |result| {
-                    match result {
-                        Ok(fresh) => {
-                            *state_bg.notes.borrow_mut() = fresh;
-                            rebuild_stack(&state_bg);
-                            let active = state_bg.active_view.borrow().clone();
-                            state_bg.stack.set_visible_child_name(&active);
-                        }
-                        Err(e) => state_bg.log_error(format!("save failed: {}", e)),
-                    }
-                },
-            );
-        }
-    });
-
-    {
-        let do_add = Rc::clone(&do_add);
-        add_btn.connect_clicked(move |_| do_add());
-    }
-    {
-        let do_add = Rc::clone(&do_add);
-        let time_entry = time_entry.clone();
-        let rrule_entry = rrule_entry.clone();
-        body_entry.connect_activate(move |_| {
-            if time_entry.text().is_empty() && rrule_entry.text().is_empty() {
-                do_add();
-            }
-        });
-    }
-
-    on_build(&win);
-    win.present();
-    body_entry.grab_focus();
+    on_build(&dialog);
+    dialog.present(Some(parent.upcast_ref::<gtk4::Widget>()));
 }
 
 // ── CSS ───────────────────────────────────────────────────────────────────────
