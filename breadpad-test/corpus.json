@@ -125,7 +125,7 @@
     "expected_time": null,
     "expected_body": "buy milk at the store",
     "expected_rrule": null,
-    "notes": "'at the store' has no digit — should not be parsed as time"
+    "notes": "'at the store' has no digit; should not be parsed as time"
   },
   {
     "input": "take a break in 20 minutes",
@@ -261,7 +261,7 @@
     "expected_time": null,
     "expected_body": null,
     "expected_rrule": null,
-    "notes": "vague relative time; Tier 1 cannot parse 'later today' — no assertion"
+    "notes": "vague relative time; Tier 1 cannot parse 'later today', no assertion"
   },
   {
     "input": "every sunday night check the bins",
@@ -405,7 +405,7 @@
     "expected_time": null,
     "expected_body": null,
     "expected_rrule": null,
-    "notes": "starts with 'what' (not 'what if') — question, not idea"
+    "notes": "starts with 'what' (not 'what if'); question, not idea"
   },
   {
     "input": "is this thread safe?",
@@ -453,7 +453,7 @@
     "expected_time": null,
     "expected_body": null,
     "expected_rrule": null,
-    "notes": "ambiguous; Tier 1 returns note — no assertion, good Tier 2 test case"
+    "notes": "ambiguous; Tier 1 returns note, no assertion, good Tier 2 test case"
   },
   {
     "input": "get around to fixing the shelf at some point",
@@ -469,7 +469,7 @@
     "expected_time": null,
     "expected_body": null,
     "expected_rrule": "BYDAY=MO",
-    "notes": "mixed signals: idea: prefix but recurrence takes precedence — type must be reminder"
+    "notes": "mixed signals: idea: prefix but recurrence takes precedence; type must be reminder"
   },
   {
     "input": "buy milk tonight and remind me to call the doctor tomorrow",
