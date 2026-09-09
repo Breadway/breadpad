@@ -1,5 +1,5 @@
 //! `--screenshot` CLI mode: render the named view, capture it via
-//! `bread-screenshots`, then exit — driven by `bread-ecosystem`'s
+//! `bread-screenshots`, then exit; driven by `bread-ecosystem`'s
 //! `bread-capture` orchestrator, or run standalone for one-off captures.
 //!
 //! No clap here, same reasoning as breadpad: extends breadman's own
@@ -7,7 +7,7 @@
 //! reject its real flags (`--view`, `done`, `upcoming --plain`).
 //!
 //! `--screenshot <view>` doubles as the view selector for every named stack
-//! page ("all", "upcoming", "todo", ...) — it's passed through as
+//! page ("all", "upcoming", "todo", ...): it's passed through as
 //! `initial_view` (the same field `--view` already sets) rather than
 //! needing a separate mechanism, since breadman already supports opening
 //! directly to a named stack page.
@@ -27,7 +27,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
-/// Delay before popping the editor popover open — same reasoning as every
+/// Delay before popping the editor popover open, same reasoning as every
 /// other app's PRE_POPUP_DELAY: the parent window's own layout needs a beat
 /// to settle first.
 const PRE_POPUP_DELAY: Duration = SETTLE_DELAY;
@@ -41,11 +41,11 @@ pub struct ScreenshotRequest {
 }
 
 /// Wire up the given view's screenshot sequence against an already-built,
-/// not-yet-presented window. Every path here ends by exiting the process —
+/// not-yet-presented window. Every path here ends by exiting the process:
 /// it never returns control to the normal note-manager UI.
 ///
 /// Unlike the other apps' `dispatch`, this doesn't validate `req.view`
-/// against a known-views list for the stack-page case — an invalid name
+/// against a known-views list for the stack-page case: an invalid name
 /// just falls through to breadman's own `unwrap_or("all")` default (see
 /// `build_app_window`), same as `--view` already behaves for a normal run.
 pub fn dispatch(

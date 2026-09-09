@@ -1,12 +1,12 @@
 //! Settings screen. Deliberately plain GTK4, not libadwaita's AdwActionRow/
-//! AdwSpinRow/AdwEntryRow family — those ran noticeably taller than the rest
+//! AdwSpinRow/AdwEntryRow family: those ran noticeably taller than the rest
 //! of the app and don't expose a way to constrain the internal spin
 //! button's width from the outside (it stretches to fill whatever room the
 //! row has, leaving the digits and +/- buttons stranded behind a huge empty
 //! bordered box once the row is wider than libadwaita's usual ~400-600px
 //! home turf). Instead this mirrors bos-settings' own Row.svelte /
-//! NumberField.svelte / TextField.svelte design exactly — same tokens
-//! (12/16px row padding, ch-width inputs, transparent-at-rest border) — so
+//! NumberField.svelte / TextField.svelte design exactly: same tokens
+//! (12/16px row padding, ch-width inputs, transparent-at-rest border): so
 //! the two settings screens in the ecosystem actually agree with each other.
 
 use breadpad_shared::config::{
@@ -45,7 +45,7 @@ fn field_group(title: &str, description: Option<&str>) -> (gtk4::Box, gtk4::List
 }
 
 /// A single row: label (+ optional subtitle) on the left, one control on
-/// the right — same shape as bos-settings' `Row.svelte`.
+/// the right: same shape as bos-settings' `Row.svelte`.
 fn field_row(label: &str, subtitle: Option<&str>, control: &impl IsA<gtk4::Widget>) -> gtk4::ListBoxRow {
     let row = gtk4::ListBoxRow::builder()
         .selectable(false)
@@ -129,7 +129,7 @@ pub fn build(cfg: &Config, on_save: impl Fn(Config) + 'static) -> gtk4::Scrolled
     // ── Local classifier ───────────────────────────────────────────
     let (model_group, model_list) = field_group(
         "Local Classifier",
-        Some("Optional local ONNX model for classifying note type/time without a network round-trip. These paths are shared with breadpad — both apps read the same model files."),
+        Some("Optional local ONNX model for classifying note type/time without a network round-trip. These paths are shared with breadpad: both apps read the same model files."),
     );
 
     let model_path_entry = text_entry(&cfg.model.path, 30);
@@ -180,7 +180,7 @@ pub fn build(cfg: &Config, on_save: impl Fn(Config) + 'static) -> gtk4::Scrolled
 
     content.append(&cal_group);
 
-    // ── Status (instant-apply — no Save button) ─────────────────
+    // ── Status (instant-apply, no Save button) ─────────────────
     let status_label = gtk4::Label::builder().label("").xalign(0.0).css_classes(["dim-label"]).margin_top(4).build();
     content.append(&status_label);
 

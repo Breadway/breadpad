@@ -29,13 +29,13 @@ pub fn bind_window(window: &impl gtk4::prelude::IsA<gtk4::Native>) {
     });
 }
 
-/// Generate the full breadpad/breadman CSS string. The base — `@define-color`
-/// palette, fonts, and generic widget styling — comes from the shared
+/// Generate the full breadpad/breadman CSS string. The base (`@define-color`
+/// palette, fonts, and generic widget styling) comes from the shared
 /// `bread_theme::stylesheet`, so breadpad and breadman look identical to the
 /// rest of the ecosystem. Only breadpad-specific component rules are appended.
 pub fn build_css(palette: &Palette, user_css: Option<&str>) -> String {
     // Shared ecosystem base (define-colors incl. accent, font, buttons, entries,
-    // switches, lists, cards, scrollbars). `overlay` here is color7 — consistent
+    // switches, lists, cards, scrollbars). `overlay` here is color7: consistent
     // with every other bread app (breadpad previously mapped it to color0).
     let mut css = bread_theme::stylesheet(palette);
 
@@ -44,7 +44,7 @@ pub fn build_css(palette: &Palette, user_css: Option<&str>) -> String {
 /* breadpad/breadman-specific components */
 window { border-radius: 8px; }
 
-/* breadman/views/settings.rs — matches bos-settings' Row.svelte/
+/* breadman/views/settings.rs: matches bos-settings' Row.svelte/
    NumberField.svelte/TextField.svelte exactly (same design tokens: 12/16px
    row padding, transparent-at-rest input border, ch-width inputs) rather
    than libadwaita's own AdwActionRow/AdwSpinRow padding and internal

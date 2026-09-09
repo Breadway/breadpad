@@ -304,7 +304,7 @@ fn rotate_archive_zero_when_nothing_qualifies() {
 #[test]
 fn rotate_archive_note_just_inside_boundary_stays() {
     let (_dir, store) = mk();
-    // 29 days ago — threshold is 30 — should NOT be archived
+    // 29 days ago, threshold is 30, should NOT be archived
     let mut n = note("fresh enough", NoteType::Todo);
     n.done = true;
     n.completed = Some(Utc::now() - Duration::days(29));
@@ -317,7 +317,7 @@ fn rotate_archive_note_just_inside_boundary_stays() {
 #[test]
 fn rotate_archive_note_just_past_boundary_is_archived() {
     let (_dir, store) = mk();
-    // 31 days ago — threshold is 30 — should be archived
+    // 31 days ago, threshold is 30, should be archived
     let mut n = note("old enough", NoteType::Todo);
     n.done = true;
     n.completed = Some(Utc::now() - Duration::days(31));

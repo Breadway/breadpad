@@ -168,7 +168,7 @@ impl AppState {
 /// Run `work` on a background thread, then call `then` on the GTK main thread.
 ///
 /// `work` must be `Send + 'static` (moves into the thread).
-/// `then` only needs `'static` — it can capture GTK widgets and `Rc<RefCell<...>>`.
+/// `then` only needs `'static`: it can capture GTK widgets and `Rc<RefCell<...>>`.
 ///
 /// Uses `glib::MainContext::spawn_local` (called from the main thread) with a
 /// `futures_channel::oneshot` to bridge the blocking result back to the async future.
@@ -202,7 +202,7 @@ fn rebuild_all_view(notes: &[Note], state: &AppState) {
     if let Some(child) = state.stack.child_by_name("all") {
         state.stack.remove(&child);
     }
-    let scroll = build_note_list(notes, state.clone(), true, "No notes yet — jot something down to get started.", Some(NoteType::Note));
+    let scroll = build_note_list(notes, state.clone(), true, "No notes yet, jot something down to get started.", Some(NoteType::Note));
     state.stack.add_named(&scroll, Some("all"));
 }
 
@@ -216,7 +216,7 @@ fn rebuild_stack(state: &AppState) {
     let errors: Vec<_> = state.errors.borrow().clone();
 
     // All
-    let all_scroll = build_note_list(&notes, state.clone(), true, "No notes yet — jot something down to get started.", Some(NoteType::Note));
+    let all_scroll = build_note_list(&notes, state.clone(), true, "No notes yet, jot something down to get started.", Some(NoteType::Note));
     state.stack.add_named(&all_scroll, Some("all"));
 
     // Upcoming
@@ -312,7 +312,7 @@ fn cmd_upcoming_plain() -> Result<()> {
     for note in &notes {
         let t = note.effective_time().expect("filtered by is_some above");
         let local: chrono::DateTime<Local> = t.into();
-        println!("[{}] {} — {}", note.id, local.format("%a %b %d %H:%M"), note.body);
+        println!("[{}] {}: {}", note.id, local.format("%a %b %d %H:%M"), note.body);
     }
     Ok(())
 }
@@ -359,7 +359,7 @@ fn build_app_window(
     screenshot_req: Option<screenshot::ScreenshotRequest>,
 ) -> Result<()> {
     apply_css(&cfg);
-    // Needed once before constructing any adw:: widget (see views::settings) —
+    // Needed once before constructing any adw:: widget (see views::settings);
     // also forces dark mode, since bread-theme's palette is a fixed dark base
     // regardless of the system GTK preference.
     bread_theme::adw::init();
@@ -416,7 +416,7 @@ fn build_app_window(
     };
     // One icon language throughout (was 8 full-colour emoji + 2 thin
     // monochrome glyphs for Settings/Errors + a third style on row action
-    // buttons) — every sidebar entry and row action now uses a real GTK
+    // buttons); every sidebar entry and row action now uses a real GTK
     // symbolic icon.
     let make_item = |id: &str, icon_name: &str, label: &str| {
         let row = gtk4::ListBoxRow::builder()
@@ -496,7 +496,7 @@ fn build_app_window(
                 let view = row.widget_name().to_string();
                 if view.is_empty() { return; }
                 *state_c.active_view.borrow_mut() = view.clone();
-                // The search bar only means anything on note-list views —
+                // The search bar only means anything on note-list views;
                 // it used to render (uselessly) on Settings and Errors too.
                 search_entry_c.set_visible(!matches!(view.as_str(), "settings" | "errors"));
                 refresh(&state_c);
@@ -519,7 +519,7 @@ fn build_app_window(
                     .filter(|n| n.body.to_lowercase().contains(&q))
                     .collect()
             };
-            // Only replace the "all" page — other views keep their scroll position.
+            // Only replace the "all" page; other views keep their scroll position.
             rebuild_all_view(&filtered, &state_c);
             state_c.stack.set_visible_child_name("all");
         });
@@ -560,7 +560,7 @@ fn build_app_window(
 }
 
 // ── Note list ─────────────────────────────────────────────────────────────────
-// Row rendering itself lives in views::row (shared with Upcoming/Archive) —
+// Row rendering itself lives in views::row (shared with Upcoming/Archive);
 // design review found the old two-line card here wasted enormous horizontal
 // space (title and actions separated by ~800-1000px of dead middle) compared
 // to Archive's tighter single-line layout, so all list views now share one
@@ -634,7 +634,7 @@ fn show_add_note_window(parent: &gtk4::ApplicationWindow, state: AppState, prese
         .build();
     vbox.append(&body_entry);
 
-    // Type pills — same chip widget the editor dialog and settings screen
+    // Type pills: same chip widget the editor dialog and settings screen
     // use, instead of three different type-picker widgets across the app.
     vbox.append(&gtk4::Label::builder().label("Type").xalign(0.0).build());
     let chip_box = gtk4::Box::builder()
@@ -703,7 +703,7 @@ fn show_add_note_window(parent: &gtk4::ApplicationWindow, state: AppState, prese
         cancel_btn.connect_clicked(move |_| win_c.close());
     }
 
-    // Shared add-note logic — called by both the button and the Enter key.
+    // Shared add-note logic: called by both the button and the Enter key.
     let do_add: Rc<dyn Fn()> = Rc::new({
         let win = win.clone();
         let state = state.clone();

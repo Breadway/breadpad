@@ -327,7 +327,7 @@ mod tests {
 
     #[test]
     fn daily_rrule_defaults_hour_from_morning() {
-        // No BYHOUR in rrule — should fall back to default_morning
+        // No BYHOUR in rrule: should fall back to default_morning
         let t = parse_next_from_rrule("RRULE:FREQ=DAILY", "07:15").unwrap();
         let local: chrono::DateTime<Local> = t.into();
         assert_eq!(local.hour(), 7);

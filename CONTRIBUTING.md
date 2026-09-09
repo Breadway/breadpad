@@ -1,6 +1,6 @@
 # Contributing
 
-`breadpad` — Quick-capture scratchpad and note viewer (breadman) with AI classification.
+`breadpad`: quick-capture scratchpad and note viewer (breadman) with AI classification.
 
 Part of the bread ecosystem; this repo follows the same branch/release
 workflow as every other ecosystem product.
@@ -9,10 +9,10 @@ workflow as every other ecosystem product.
 
 There is one long-lived branch: **`main`**. All day-to-day work lands here.
 Every push to `main` automatically builds and publishes a **dev-track**
-build (see Tracks below) — a real install you can test before cutting
+build (see Tracks below), a real install you can test before cutting
 anything more formal.
 
-New work — features and bug fixes alike — goes on a short-lived branch:
+New work, features and bug fixes alike, goes on a short-lived branch:
 
 ```
 feature/<short-name>
@@ -20,24 +20,24 @@ fix/<issue-number-or-short-name>
 ```
 
 Branch off `main`, open a PR/push back into `main` when ready. Short-lived
-branches get deleted on merge — they never accumulate the kind of drift a
+branches get deleted on merge, so they never accumulate the kind of drift a
 second long-lived branch does.
 
 ## The release cycle
 
-There's no separate `beta` or release branch — "stable" and "beta" are both
+There's no separate `beta` or release branch: "stable" and "beta" are both
 just **tags** on `main`, not branches that need to be kept in sync:
 
 1. Work accumulates on `main` via `feature/x` / `fix/x` branches. Each push
-   auto-publishes a dev build — install it with `bakery track set dev` and
+   auto-publishes a dev build; install it with `bakery track set dev` and
    `bakery update --all`, then fix anything broken with another push.
 2. When you want to stabilize before a real release, tag a release
    candidate: `git tag vX.Y.Z-rc.1 && git push origin vX.Y.Z-rc.1` (push to
-   both remotes). That tag alone triggers a beta-track build —
+   both remotes). That tag alone triggers a beta-track build;
    "freezing" is just pausing pushes to `main` while you test it, not a
    branch operation. Cut `-rc.2`, `-rc.3`, etc. for further fixes.
 3. Once an RC has gone without issues, tag the real release:
-   `git tag vX.Y.Z && git push origin vX.Y.Z` — that's what triggers the
+   `git tag vX.Y.Z && git push origin vX.Y.Z`: that's what triggers the
    signed stable release build.
 
 ## Tracks, from a user's perspective
@@ -56,7 +56,7 @@ bakery update --all            # pull the latest build on your current track
 
 Dev versions are auto-computed (`X.Y.Z-dev.<timestamp>+<sha>`) from the
 latest published stable tag, so they always sort as newer than what you
-have installed — no manual version bumping needed. Beta versions are just
+have installed, no manual version bumping needed. Beta versions are just
 the RC tag itself (already valid semver, already sorts below the real
 release it's a candidate for).
 
@@ -69,24 +69,24 @@ cargo test --release --workspace
 
 ## CI
 
-- `check.yml` — clippy + test, triggered on push to `feature/**`/`fix/**`.
+- `check.yml`: clippy + test, triggered on push to `feature/**`/`fix/**`.
   Fast-fail before anything reaches `main`.
-- `dev-release.yml` — triggered on push to `main`.
-- `rc-release.yml` — triggered on any `vX.Y.Z-rc.N` tag push.
-- `release.yml` — triggered on any other `v*` tag push, cuts the actual
+- `dev-release.yml`: triggered on push to `main`.
+- `rc-release.yml`: triggered on any `vX.Y.Z-rc.N` tag push.
+- `release.yml`: triggered on any other `v*` tag push, cuts the actual
   stable release.
 
 All of these build inside a pinned Arch Linux container on a self-hosted
-runner — not the runner host's native environment. Arch's repos carry
+runner, not the runner host's native environment. Arch's repos carry
 current `gtk4`/`libadwaita`/`gtk4-layer-shell` as prebuilt packages, so
 there's no from-source library build to go stale. The Containerfile and
 build script are shared across bread-ecosystem GTK4 products, living in
 `bread-ecosystem/ci/`; `ci/build.sh` here is a thin wrapper that clones
-that repo at the commit pinned in `ci/bread-ecosystem.rev` (not `main` —
+that repo at the commit pinned in `ci/bread-ecosystem.rev` (not `main`;
 an unrelated change there shouldn't silently affect this repo's release
 builds) and delegates to it. Bump the pin deliberately when you want the
 shared image or build logic updated. A `ci/deps.txt` here (currently
-absent — breadpad needs nothing beyond the shared base) would layer on
+absent, breadpad needs nothing beyond the shared base) would layer on
 extra pacman packages if that ever changes. Nothing runs automatically on
 plain commits or PRs beyond the jobs listed above. See
 [bread-ecosystem's docs/release-channels.md](https://git.breadway.dev/Breadway/bread-ecosystem/src/branch/main/docs/release-channels.md)

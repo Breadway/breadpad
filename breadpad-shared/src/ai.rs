@@ -72,7 +72,7 @@ impl OllamaClient {
 
         let classification: OllamaClassification = extract_json(&ollama_resp.response)
             .ok_or_else(|| anyhow::anyhow!(
-                "no JSON object found in response — raw: {:?}",
+                "no JSON object found in response; raw: {:?}",
                 ollama_resp.response
             ))?;
 
@@ -91,10 +91,10 @@ impl OllamaClient {
         // cleaned body if it provided one and Tier 1 didn't already strip anything.
         let body = if let Some(llm_body) = classification.body.filter(|b| !b.trim().is_empty()) {
             if fallback.body == text {
-                // Tier 1 didn't clean the body — accept LLM's version
+                // Tier 1 didn't clean the body: accept LLM's version
                 llm_body
             } else {
-                // Tier 1 already stripped time phrases — keep its result
+                // Tier 1 already stripped time phrases: keep its result
                 fallback.body.clone()
             }
         } else {

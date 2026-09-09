@@ -28,7 +28,7 @@ fn emit_captured(id: &str) {
 }
 
 /// `bread.pad.reminder.due` when `breadpad fire <id>` actually shows a reminder
-/// (the existing systemd-timer hook — not a new daemon). Same fail-silent emit.
+/// (the existing systemd-timer hook, not a new daemon). Same fail-silent emit.
 fn emit_reminder_due(id: &str) {
     BreadClient::connect(APP_ID).emit("bread.pad.reminder.due", serde_json::json!({ "id": id }));
 }
@@ -202,8 +202,8 @@ fn main() -> Result<()> {
     if let Some(req) = &screenshot_req {
         if req.view == "reminder" || req.view == "reminder-snooze" {
             // The real path (`fire <id>`, above) needs a real due note from
-            // the Store. A screenshot doesn't have one to work with — and
-            // shouldn't wait for one — so it builds a throwaway sample
+            // the Store. A screenshot doesn't have one to work with, and
+            // shouldn't wait for one, so it builds a throwaway sample
             // instead, never touching the Store at all.
             let mut sample = Note::new(
                 "Sample reminder text".into(),
@@ -234,7 +234,7 @@ fn cmd_status(cfg: &Config) -> Result<()> {
         if classifier.model_available() {
             format!("loaded ({:?})", classifier.model_path)
         } else {
-            "not loaded — run 'breadpad download-model'".into()
+            "not loaded: run 'breadpad download-model'".into()
         }
     );
     println!("  execution provider: {}", classifier.active_provider.as_str());
@@ -259,7 +259,7 @@ fn cmd_model_info(cfg: &Config) -> Result<()> {
 }
 
 fn cmd_download_model(cfg: &Config) -> Result<()> {
-    // Placeholder — a real implementation would download a quantised ONNX model.
+    // Placeholder: a real implementation would download a quantised ONNX model.
     // The exact model URL is left for the user to configure.
     let (model_path, tokenizer_path) = cfg.model.resolved_paths();
     if let Some(dir) = model_path.parent() {
@@ -271,7 +271,7 @@ fn cmd_download_model(cfg: &Config) -> Result<()> {
     println!("Model path: {}", model_path.display());
     println!("Tokenizer path: {}", tokenizer_path.display());
     println!("Place the classifier ONNX and tokenizer JSON at those paths.");
-    println!("(Automatic download not yet configured — set a model URL in breadpad.toml)");
+    println!("(Automatic download not yet configured: set a model URL in breadpad.toml)");
     Ok(())
 }
 
@@ -524,7 +524,7 @@ fn build_reminder_window(
         .orientation(gtk4::Orientation::Horizontal)
         .build());
 
-    // Button row — same inset as the header/body zone above (20px), which
+    // Button row: same inset as the header/body zone above (20px), which
     // used to be 16px here, visible as a step across the divider.
     let btn_row = gtk4::Box::builder()
         .orientation(gtk4::Orientation::Horizontal)
@@ -589,7 +589,7 @@ fn build_reminder_window(
         snooze_vbox.append(&btn);
     }
 
-    // Custom… — reuses the same free-form time parsing breadman's dialogs
+    // Custom…, reuses the same free-form time parsing breadman's dialogs
     // already use, rather than inventing a separate time-picker widget.
     let custom_entry = gtk4::Entry::builder()
         .placeholder_text("tomorrow 9am  /  in 45 minutes")
@@ -822,7 +822,7 @@ fn build_window(
         }
     }
 
-    // No submit button — this popup is keyboard-driven (grabs focus on
+    // No submit button: this popup is keyboard-driven (grabs focus on
     // open, Escape closes it) and a bare accent-teal checkmark used to sit
     // next to the selected-type pill in the same accent teal, carrying two
     // different meanings in one colour. A hint is enough.

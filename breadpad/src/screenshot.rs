@@ -1,5 +1,5 @@
 //! `--screenshot` CLI mode: render breadpad's compose popup, capture it via
-//! `bread-screenshots`, then exit — driven by `bread-ecosystem`'s
+//! `bread-screenshots`, then exit; driven by `bread-ecosystem`'s
 //! `bread-capture` orchestrator, or run standalone for one-off captures.
 //!
 //! No clap here (unlike breadbar/breadbox/breadclip/breadsearch): breadpad
@@ -13,7 +13,7 @@
 //! Three views: "popup" (the compose window from `run_popup`), "reminder"
 //! (the alert window from `run_reminder_window`/`build_reminder_window`,
 //! normally only reachable via a real due note through `fire <id>`, built
-//! here against a fabricated sample `Note` instead — see `main`'s
+//! here against a fabricated sample `Note` instead; see `main`'s
 //! `screenshot_req.view == "reminder"` branch, which skips the Store lookup
 //! entirely), and "reminder-snooze" (the same window with its snooze
 //! popover open).
@@ -23,7 +23,7 @@ use gtk4::prelude::*;
 use std::path::PathBuf;
 use std::time::Duration;
 
-/// Delay before popping the snooze popover open — same reasoning as every
+/// Delay before popping the snooze popover open: same reasoning as every
 /// other app's PRE_POPUP_DELAY: the parent window's own layout needs a beat
 /// to settle first.
 const PRE_POPUP_DELAY: Duration = SETTLE_DELAY;
@@ -37,7 +37,7 @@ pub struct ScreenshotRequest {
 }
 
 /// Wire up the given view's screenshot sequence against an already-built,
-/// not-yet-presented window. Every path here ends by exiting the process —
+/// not-yet-presented window. Every path here ends by exiting the process:
 /// it never returns control to the normal popup UI.
 pub fn dispatch(window: &gtk4::ApplicationWindow, req: ScreenshotRequest) {
     match req.view.as_str() {
@@ -59,7 +59,7 @@ pub fn dispatch(window: &gtk4::ApplicationWindow, req: ScreenshotRequest) {
 }
 
 /// Same shape as `dispatch`'s "popup" arm, for the reminder window itself
-/// (view "reminder") — pulled out since `build_reminder_window` calls this
+/// (view "reminder"): pulled out since `build_reminder_window` calls this
 /// directly rather than going through `dispatch` (the reminder window is
 /// built via a completely separate `run_reminder_window` entry point, not
 /// `run_popup`'s).

@@ -6,7 +6,7 @@ Two entry points, one binary, one shared workspace:
 
 | Binary | Purpose |
 |--------|---------|
-| `breadpad` | Layer-shell capture popup — type a note, press Enter, done |
+| `breadpad` | Layer-shell capture popup: type a note, press Enter, done |
 | `breadman` | Full note viewer and manager |
 
 ---
@@ -25,20 +25,20 @@ breadman          GTK4 note viewer / manager
 
 ### Capture (`breadpad`)
 
-- Layer-shell popup, centered, keyboard-exclusive — appears instantly on your keybind
+- Layer-shell popup, centered, keyboard-exclusive; appears instantly on your keybind
 - Single text field; press **Enter** or click **✓** to save, **Escape** to dismiss
 - Optional manual type override before saving (defaults to AI classification)
 - Timestamp and active Hyprland workspace recorded automatically
 
 ### Classification
 
-Every note passes through a three-tier pipeline at capture time. **Tier 1 is the only tier that ships with breadpad** — the ONNX classifier model is not bundled, and Ollama is optional. Capture works without either.
+Every note passes through a three-tier pipeline at capture time. **Tier 1 is the only tier that ships with breadpad**: the ONNX classifier model is not bundled, and Ollama is optional. Capture works without either.
 
-1. **Rule-based parser** — always runs first; handles time extraction ("at 7pm", "in 30 minutes", "tomorrow morning", "next Friday"), recurrence ("every Sunday at 9pm", "every weekday morning"), and strong type signals ("?" → question, "idea:" prefix → idea, action verbs → todo). High-confidence results skip the remaining tiers entirely. This is the default path; no model files required.
-2. **Small local ONNX model (optional, not shipped)** — runs when Tier 1 can't confidently assign a type *and* you have dropped in your own classifier. Responsible for type classification only; Tier 1's extracted time, recurrence rule, and cleaned body are always preserved.
-3. **Large local model via Ollama (optional)** — runs only when Tier 2 confidence falls below a configurable threshold. Communicates with a locally running Ollama instance over HTTP. If Ollama is unreachable, the previous tier's result is used. No cloud APIs are involved.
+1. **Rule-based parser**: always runs first; handles time extraction ("at 7pm", "in 30 minutes", "tomorrow morning", "next Friday"), recurrence ("every Sunday at 9pm", "every weekday morning"), and strong type signals ("?" → question, "idea:" prefix → idea, action verbs → todo). High-confidence results skip the remaining tiers entirely. This is the default path; no model files required.
+2. **Small local ONNX model (optional, not shipped)**: runs when Tier 1 can't confidently assign a type *and* you have dropped in your own classifier. Responsible for type classification only; Tier 1's extracted time, recurrence rule, and cleaned body are always preserved.
+3. **Large local model via Ollama (optional)**: runs only when Tier 2 confidence falls below a configurable threshold. Communicates with a locally running Ollama instance over HTTP. If Ollama is unreachable, the previous tier's result is used. No cloud APIs are involved.
 
-Manual override always available — the AI-assigned type is shown as a chip you can tap to change before saving.
+Manual override always available: the AI-assigned type is shown as a chip you can tap to change before saving.
 
 ### Note types (built-in)
 
@@ -54,24 +54,24 @@ User-defined tags can be added freely on top of the built-in types.
 
 ### Reminders, recurrence, and snooze
 
-- **One-off reminders** — natural language time ("at 7pm", "in 30 minutes", "tomorrow morning") parsed at classification time; scheduled via a systemd user timer
-- **Recurring reminders** — "every Sunday at 9pm", "every weekday morning" — stored as an iCal-compatible RRULE and re-scheduled on each trigger
-- **Snooze** — notification popup includes snooze actions: 15 min / 1 hour / tomorrow morning / custom; snoozing reschedules the timer without touching the original note
-- **Missed reminders** — if the system was off or suspended at the scheduled time, the reminder fires on next login
+- **One-off reminders**: natural language time ("at 7pm", "in 30 minutes", "tomorrow morning") parsed at classification time; scheduled via a systemd user timer
+- **Recurring reminders**: "every Sunday at 9pm", "every weekday morning", stored as an iCal-compatible RRULE and re-scheduled on each trigger
+- **Snooze**: notification popup includes snooze actions: 15 min / 1 hour / tomorrow morning / custom; snoozing reschedules the timer without touching the original note
+- **Missed reminders**: if the system was off or suspended at the scheduled time, the reminder fires on next login
 
 ### Viewer (`breadman`)
 
 - Sidebar with one entry per type + "All" and "Upcoming"
 - Each note card shows: body, type chip, timestamp, workspace tag, recurrence badge if set
 - **Upcoming** view: chronological list of all pending reminders and todos with times
-- Inline editing — click any card to edit body, type, time, or recurrence
+- Inline editing: click any card to edit body, type, time, or recurrence
 - Mark todo/reminder as done; done items move to an archive accessible via a toggle
 - Search across all notes (full-text, instant)
 - Sort: newest first (default)
 
 ### Theming
 
-- Reads `~/.cache/wal/colors.json` (pywal) on startup — matches the rest of the bread ecosystem
+- Reads `~/.cache/wal/colors.json` (pywal) on startup; matches the rest of the bread ecosystem
 - Falls back to Catppuccin Mocha
 - CSS override: `~/.config/breadpad/style.css`
 - `SIGHUP` reloads theme at runtime
@@ -80,14 +80,14 @@ User-defined tags can be added freely on top of the built-in types.
 
 ## Storage
 
-Notes are stored as JSONL at `~/.local/share/breadpad/notes.jsonl` — one JSON object per line, human-readable, easy to back up or script against.
+Notes are stored as JSONL at `~/.local/share/breadpad/notes.jsonl`: one JSON object per line, human-readable, easy to back up or script against.
 
 ```jsonl
 {"id":"a1b2c3","body":"Pack calculator in bag","type":"reminder","time":"2026-05-25T19:00:00Z","rrule":null,"done":false,"workspace":"1","created":"2026-05-25T18:45:00Z","snoozed_until":null,"completed":null,"tags":[],"caldav_uid":null}
 {"id":"d4e5f6","body":"Look into relm4 reactive patterns","type":"idea","time":null,"rrule":null,"done":false,"workspace":"2","created":"2026-05-25T14:10:00Z","snoozed_until":null,"completed":null,"tags":[],"caldav_uid":null}
 ```
 
-Completed notes are never deleted — they gain `"done": true` and a `"completed"` timestamp. A separate `~/.local/share/breadpad/archive.jsonl` is written periodically for notes older than 30 days.
+Completed notes are never deleted; they gain `"done": true` and a `"completed"` timestamp. A separate `~/.local/share/breadpad/archive.jsonl` is written periodically for notes older than 30 days.
 
 ---
 
@@ -95,7 +95,7 @@ Completed notes are never deleted — they gain `"done": true` and a `"completed
 
 ### Three-tier pipeline
 
-#### Tier 1 — Rule-based parser
+#### Tier 1: Rule-based parser
 
 Always runs. Handles:
 - **Time extraction**: "at 7pm", "in 30 minutes", "tomorrow morning", "next Friday at 9am"
@@ -104,15 +104,15 @@ Always runs. Handles:
 
 Returns a calibrated confidence. If ≥ 0.82, Tiers 2 and 3 are skipped.
 
-#### Tier 2 — Small local ONNX model (optional, not shipped)
+#### Tier 2: Small local ONNX model (optional, not shipped)
 
-Runs when Tier 1 confidence is below threshold **and** a compatible `classifier.onnx` + `tokenizer.json` are present. Responsible for **type classification only** — Tier 1's extracted time, recurrence rule, and cleaned body are always preserved.
+Runs when Tier 1 confidence is below threshold **and** a compatible `classifier.onnx` + `tokenizer.json` are present. Responsible for **type classification only**: Tier 1's extracted time, recurrence rule, and cleaned body are always preserved.
 
 Invoked via `ort` (ONNX Runtime Rust bindings, `load-dynamic`) on the CPU. Requires an external `libonnxruntime.so`; set `model.ort_dylib_path` in `breadpad.toml` or let breadpad auto-discover it via `ORT_DYLIB_PATH`. Without a model file or runtime library, Tier 2 is skipped and Tier 1 (plus optional Tier 3) still works.
 
-#### Tier 3 — Large local model via Ollama
+#### Tier 3: Large local model via Ollama
 
-Runs only when Tier 2 confidence falls below `model.ollama.confidence_threshold` (default 0.6). Sends a structured prompt to a locally running Ollama instance over HTTP and parses the JSON response for `type`, `body`, and `confidence`. The Ollama model runs on the iGPU via Ollama's own backend — breadpad does not manage GPU allocation for this tier.
+Runs only when Tier 2 confidence falls below `model.ollama.confidence_threshold` (default 0.6). Sends a structured prompt to a locally running Ollama instance over HTTP and parses the JSON response for `type`, `body`, and `confidence`. The Ollama model runs on the iGPU via Ollama's own backend; breadpad does not manage GPU allocation for this tier.
 
 If Ollama is unreachable or returns an invalid response, breadpad logs a warning and uses the Tier 2 result. No cloud APIs are used anywhere.
 
@@ -153,7 +153,7 @@ cp target/release/breadpad ~/.local/bin/
 cp target/release/breadman ~/.local/bin/
 ```
 
-That's enough for capture + viewing. Tier 1 classification works out of the box. The ONNX classifier is **not** included — only add it if you want Tier 2:
+That's enough for capture + viewing. Tier 1 classification works out of the box. The ONNX classifier is **not** included; only add it if you want Tier 2:
 
 ```bash
 mkdir -p ~/.local/share/breadpad/model
@@ -209,7 +209,7 @@ CalDAV calendar as events (tracked by `caldav_uid` on each note), so they show
 up alongside the rest of your calendar.
 
 1. Find your calendar's **collection URL**. It's the per-calendar CalDAV path,
-   not the server root — e.g. Nextcloud:
+   not the server root, e.g. Nextcloud:
    `https://host/remote.php/dav/calendars/<user>/<calendar-id>/`.
 2. Create an **app password** for breadpad (don't use your main password):
    Nextcloud → Settings → Security → *Devices & sessions* → "Create new app
@@ -227,7 +227,7 @@ up alongside the rest of your calendar.
    links each note to its event so updates and deletes stay in step.
 
 If the server is unreachable, breadpad logs a warning and keeps the note
-locally — sync is best-effort and never blocks capture.
+locally; sync is best-effort and never blocks capture.
 
 ---
 
@@ -298,7 +298,7 @@ systemctl --user list-timers 'breadpad-*'
 `breadpad-test` is a CLI test harness for the classification pipeline. It runs a JSON corpus of labelled inputs through any tier of the pipeline and reports pass/fail.
 
 ```bash
-# Run Tier 1 (rule-based only) — fast, no model needed
+# Run Tier 1 (rule-based only): fast, no model needed
 breadpad-test run
 
 # See only failing cases
@@ -331,15 +331,15 @@ Default path: `breadpad-test/corpus.json`. Override with `--corpus <path>`.
 ]
 ```
 
-- `expected_time` — `HH:MM`; date component is ignored so tests are never date-sensitive
-- `expected_rrule` — matched as substring of the actual RRULE string
-- Any `null` field is skipped — only non-null fields are asserted
+- `expected_time`: `HH:MM`; date component is ignored so tests are never date-sensitive
+- `expected_rrule`: matched as substring of the actual RRULE string
+- Any `null` field is skipped: only non-null fields are asserted
 
 ### Tier modes
 
 | `--tier` | What runs |
 |----------|-----------|
-| `1` (default) | Tier 1 rule-based parser only — no model required |
+| `1` (default) | Tier 1 rule-based parser only, no model required |
 | `2` | Tiers 1 + 2 (ONNX classifier) |
 | `3` / `all` | Full pipeline including Tier 3 Ollama |
 
@@ -373,7 +373,7 @@ breadpad-test run --tier 2 --format failures
 
 ## Nextcloud Calendar integration
 
-breadpad can push scheduled notes and recurring reminders to a CalDAV calendar (Nextcloud or any RFC 4791-compliant server). No cloud APIs are used — everything goes directly to your own server over HTTPS.
+breadpad can push scheduled notes and recurring reminders to a CalDAV calendar (Nextcloud or any RFC 4791-compliant server). No cloud APIs are used: everything goes directly to your own server over HTTPS.
 
 ### What gets pushed
 
@@ -409,11 +409,11 @@ breadpad calendar list-uid <note-id>
 ### Event format
 
 Each note is pushed as a VEVENT with:
-- `UID` — `<note-id>@breadpad` (stable and deterministic)
-- `SUMMARY` — note body
-- `DTSTART` / `DTEND` — scheduled time (or creation time for recurring notes without a fixed start)
-- `RRULE` — recurrence rule if set
-- `DESCRIPTION` — `type=<note-type>`
+- `UID`: `<note-id>@breadpad` (stable and deterministic)
+- `SUMMARY`: note body
+- `DTSTART` / `DTEND`: scheduled time (or creation time for recurring notes without a fixed start)
+- `RRULE`: recurrence rule if set
+- `DESCRIPTION`: `type=<note-type>`
 
 ### Security note
 
