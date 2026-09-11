@@ -5,26 +5,42 @@ edition.workspace = true
 license.workspace = true
 authors.workspace = true
 
+# The GUI is a Tauri 2 shell (Rust core + Svelte frontend). The Rust side is
+# a thin command layer over `breadpad-shared`; all note/config/schedule logic
+# still lives there. See `breadman/ui/` for the frontend.
+[lib]
+name = "breadman_lib"
+crate-type = ["lib"]
+path = "src/lib.rs"
+
 [[bin]]
 name = "breadman"
 path = "src/main.rs"
 
+[features]
+# Embed the built frontend (ui/dist) and serve it over the tauri:// protocol
+# instead of loading tauri.conf.json's devUrl. Release builds must pass this;
+# `cargo tauri dev` / `cargo tauri build` toggle it automatically.
+custom-protocol = ["tauri/custom-protocol"]
+
+[build-dependencies]
+tauri-build = { version = "2" }
+
 [dependencies]
 breadpad-shared = { path = "../breadpad-shared" }
-# Capture primitives for `--screenshot` mode, see src/screenshot.rs.
+# Palette loading + the web CSS-custom-property bridge (`css_custom_properties`,
+# `css_tokens`); gtk-free, so no `gtk`/`adw` feature here.
+bread-theme = { git = "https://git.breadway.dev/Breadway/bread-ecosystem", tag = "v0.7.4" }
+# `--screenshot` capture (grim, compositor-agnostic) and the shared CLI flag
+# parsing/settle-delay; same tag breadpad already pins these at.
 bread-screenshots = { git = "https://git.breadway.dev/Breadway/bread-ecosystem", tag = "v0.7.2" }
-# Shared `--screenshot` pair validation + settle delay (`screenshot_cli`).
 bread-utils = { git = "https://git.breadway.dev/Breadway/bread-ecosystem", tag = "v0.7.2" }
-# `adw` implies `gtk` (`chip`, `set_chip_active`, `adw::init`).
-bread-theme = { git = "https://git.breadway.dev/Breadway/bread-ecosystem", tag = "v0.7.4", features = ["adw"] }
-libadwaita = { version = "0.9", features = ["v1_7"] }
+tauri = { version = "2", features = [] }
+serde.workspace = true
+serde_json.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-tokio.workspace = true
 chrono.workspace = true
-gtk4.workspace = true
 dirs.workspace = true
-futures-channel = "0.3"
+notify = "6"

@@ -16,7 +16,9 @@ jobs:
             "https://git.breadway.dev/${GITHUB_REPOSITORY}.git" src
 
       - name: build
-        run: cd src && bash ci/build.sh cargo build --release --locked
+        # breadman needs `custom-protocol` to embed its Svelte frontend
+        # instead of loading a dev server; breadpad has no such feature.
+        run: cd src && bash ci/build.sh cargo build --release --locked -p breadpad -p breadman --features breadman/custom-protocol
 
       - name: compute dev version
         run: |

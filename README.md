@@ -7,7 +7,7 @@ Two entry points, one binary, one shared workspace:
 | Binary | Purpose |
 |--------|---------|
 | `breadpad` | Layer-shell capture popup: type a note, press Enter, done |
-| `breadman` | Full note viewer and manager |
+| `breadman` | Full note viewer and manager (Tauri 2 + Svelte) |
 
 ---
 
@@ -16,8 +16,15 @@ Two entry points, one binary, one shared workspace:
 ```
 breadpad-shared   shared types, storage, classification, scheduler
 breadpad          GTK4 layer-shell capture popup
-breadman          GTK4 note viewer / manager
+breadman          note viewer / manager: Tauri 2 shell + Svelte frontend (breadman/ui/),
+                  thin Rust command layer over breadpad-shared
 ```
+
+The Rust core (storage, scheduler, parser, classifier) is shared; only
+breadman's UI layer is a webview. `breadman/build.rs` builds the Svelte
+frontend into `breadman/ui/dist` on `cargo build`, so a plain workspace
+build produces a complete binary. Set `BREADMAN_SKIP_UI_BUILD=1` and run
+`pnpm -C breadman/ui dev` for hot-reload frontend work.
 
 ---
 
@@ -134,7 +141,8 @@ breadpad model-info   # shows active EP and model path
 ## Requirements
 
 - Linux with a running Hyprland compositor
-- GTK4 (≥ 4.12) + `gtk4-layer-shell`
+- GTK4 (≥ 4.12) + `gtk4-layer-shell` (breadpad)
+- `webkit2gtk-4.1` (breadman's webview) + Node & `pnpm` (to build breadman's frontend)
 - D-Bus session bus (for notifications)
 - systemd user session (for timer-backed reminders)
 - Rust 1.80+
@@ -261,9 +269,10 @@ bind = $mainMod, U, exec, breadpad
 # Open the note viewer
 breadman
 
-# Open directly to a specific type view
+# Open directly to a specific view
 breadman --view todo
 breadman --view upcoming
+breadman --view editor          # open straight into the note editor
 
 # Mark a note done by ID (scriptable)
 breadman done <id>

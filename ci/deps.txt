@@ -1,0 +1,7 @@
+# Extra pacman packages for the shared CI image, on top of the GTK4 base.
+# breadman is now a Tauri app: it needs the WebKitGTK runtime and a Node +
+# pnpm toolchain to build its Svelte frontend (invoked from breadman/build.rs).
+webkit2gtk-4.1
+libsoup3
+nodejs
+pnpm

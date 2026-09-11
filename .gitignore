@@ -28,5 +28,9 @@ svgs.txt
 Cargo.lock
 dist/
 
+# Tauri (breadman) — frontend deps + generated schema/permission code
+breadman/ui/node_modules/
+breadman/gen/
+
 # Local knowledge-graph cache
 graphify-out/

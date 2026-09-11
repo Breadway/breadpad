@@ -16,7 +16,7 @@ jobs:
             "https://git.breadway.dev/${GITHUB_REPOSITORY}.git" src
 
       - name: build
-        run: cd src && bash ci/build.sh cargo build --release --locked
+        run: cd src && bash ci/build.sh cargo build --release --locked -p breadpad -p breadman --features breadman/custom-protocol
 
       - name: prepare artifacts
         run: |
