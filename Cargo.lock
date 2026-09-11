@@ -430,7 +430,7 @@ dependencies = [
 
 [[package]]
 name = "breadman"
-version = "0.5.3"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "bread-screenshots",
@@ -450,7 +450,7 @@ dependencies = [
 
 [[package]]
 name = "breadpad"
-version = "0.5.3"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "bread-screenshots",
@@ -471,7 +471,7 @@ dependencies = [
 
 [[package]]
 name = "breadpad-shared"
-version = "0.5.3"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "bread-onnx",
@@ -498,7 +498,7 @@ dependencies = [
 
 [[package]]
 name = "breadpad-test"
-version = "0.5.3"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "breadpad-shared",
