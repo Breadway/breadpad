@@ -952,7 +952,7 @@ fn save_note_classified(
 }
 
 fn apply_css(_cfg: &Config) {
-    // Hot-reloads on `bread-theme reload` (recolours to the new pywal palette
-    // and re-reads the user's style.css). See breadpad_shared::theme::apply_live.
+    // Hot-reloads on `bread-theme reload` (recolours to the new wallpaper
+    // palette and re-reads the user's style.css). See breadpad_shared::theme::apply_live.
     breadpad_shared::theme::apply_live();
 }

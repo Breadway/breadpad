@@ -1,9 +1,9 @@
 /* breadman frontend styling. Colour + token variables (--bg, --accent,
    --font-family, --space-*, --radius-*, ...) are injected at runtime by the
-   Rust side from the live pywal palette via bread-theme, into <style
-   id="bread-theme">. This file only defines derived tokens and component
-   rules on top of them, mirroring how the GTK apps append their own rules
-   to bread_theme::stylesheet. */
+   Rust side from the live wallpaper-derived palette via bread-theme, into
+   <style id="bread-theme">. This file only defines derived tokens and
+   component rules on top of them, mirroring how the GTK apps append their
+   own rules to bread_theme::stylesheet. */
 
 :root {
   color-scheme: dark;

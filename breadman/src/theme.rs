@@ -1,8 +1,9 @@
 //! Palette bridge. breadman's frontend is styled entirely through CSS custom
-//! properties; this module renders them from the live pywal palette (via
-//! `bread-theme`, the same crate the GTK apps use) and re-renders on change,
-//! so a `bread-theme reload` / wallpaper switch recolours the window with no
-//! restart, exactly like the GTK build's live reload.
+//! properties; this module renders them from the live wallpaper-derived
+//! palette (via `bread-theme`, the same crate the GTK apps use) and
+//! re-renders on change, so a `bread-theme reload` / wallpaper switch
+//! recolours the window with no restart, exactly like the GTK build's live
+//! reload.
 
 use notify::{RecursiveMode, Watcher};
 use std::path::PathBuf;
@@ -29,9 +30,7 @@ pub fn render_css() -> String {
 
 fn watched_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
-    if let Some(cache) = dirs::cache_dir() {
-        dirs.push(cache.join("wal"));
-    }
+    dirs.push(bread_theme::palette_cache_dir());
     if let Some(rt) = std::env::var_os("XDG_RUNTIME_DIR") {
         dirs.push(PathBuf::from(rt).join("bread"));
     }

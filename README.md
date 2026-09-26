@@ -78,7 +78,7 @@ User-defined tags can be added freely on top of the built-in types.
 
 ### Theming
 
-- Reads `~/.cache/wal/colors.json` (pywal) on startup; matches the rest of the bread ecosystem
+- Reads bread-theme's global palette cache on startup; matches the rest of the bread ecosystem
 - Falls back to Catppuccin Mocha
 - CSS override: `~/.config/breadpad/style.css`
 - `SIGHUP` reloads theme at runtime
