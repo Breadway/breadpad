@@ -67,14 +67,40 @@ cargo build --release --workspace
 cargo test --release --workspace
 ```
 
+Cargo.toml pins every `git.breadway.dev` dependency to a release tag; the
+commands above build against exactly those tagged versions, same as a
+stable/beta release would. To instead build against those dependencies'
+own `main` (what `dev-release.yml` and `check.yml` do, and what you need to
+exercise a cross-repo change before either side is tagged), run
+bread-ecosystem's shared script from this checkout:
+
+```sh
+/path/to/bread-ecosystem/scripts/dev-deps.sh --root .
+cargo build --release --workspace   # no --locked: the patched deps resolve to main
+```
+
+This clones each dependency repo's `main` as a true sibling of this
+checkout (or wherever `DEV_DEPS_DIR` points, if set), writes a generated,
+gitignored `.cargo/config.toml`, and updates `Cargo.lock` to match. Discard
+both (`git checkout -- Cargo.lock` and remove `.cargo/config.toml`) when
+you're done. See bread-ecosystem's `docs/release-channels.md`
+("Cross-repo dependency resolution") for the full model.
+
 ## CI
 
 - `check.yml`: clippy + test, triggered on push to `feature/**`/`fix/**`.
-  Fast-fail before anything reaches `main`.
-- `dev-release.yml`: triggered on push to `main`.
-- `rc-release.yml`: triggered on any `vX.Y.Z-rc.N` tag push.
+  Fast-fail before anything reaches `main`. Lints git.breadway.dev
+  dependency pins, then builds in the same dev mode as `dev-release.yml`
+  (see above), so a PR that needs a just-merged, not-yet-tagged
+  dependency change still passes.
+- `dev-release.yml`: triggered on push to `main`. Also dev mode: resolves
+  dependencies to their own `main` before building, unlike the two tracks
+  below.
+- `rc-release.yml`: triggered on any `vX.Y.Z-rc.N` tag push. Builds
+  against the tagged Cargo.toml pins with `--locked`; no dependency
+  patching.
 - `release.yml`: triggered on any other `v*` tag push, cuts the actual
-  stable release.
+  stable release. Same `--locked`, tag-pinned build as `rc-release.yml`.
 
 All of these build inside a pinned Arch Linux container on a self-hosted
 runner, not the runner host's native environment. Arch's repos carry
