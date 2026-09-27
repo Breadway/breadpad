@@ -30,7 +30,20 @@ pub fn render_css() -> String {
 
 fn watched_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
-    dirs.push(bread_theme::palette_cache_dir());
+
+    // Create the palette cache dir if it does not exist yet (e.g. before
+    // breadpaper has ever written a palette on a fresh install): otherwise
+    // the retain() below drops it and the very first write is never seen,
+    // since notify can only watch a directory that already exists.
+    let palette_dir = bread_theme::palette_cache_dir();
+    if let Err(e) = std::fs::create_dir_all(&palette_dir) {
+        tracing::warn!(
+            "theme watcher: cannot create {}: {e}",
+            palette_dir.display()
+        );
+    }
+    dirs.push(palette_dir);
+
     if let Some(rt) = std::env::var_os("XDG_RUNTIME_DIR") {
         dirs.push(PathBuf::from(rt).join("bread"));
     }
