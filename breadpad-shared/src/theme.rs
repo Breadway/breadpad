@@ -37,7 +37,14 @@ pub fn build_css(palette: &Palette, user_css: Option<&str>) -> String {
     // Shared ecosystem base (define-colors incl. accent, font, buttons, entries,
     // switches, lists, cards, scrollbars). `overlay` here is color7: consistent
     // with every other bread app (breadpad previously mapped it to color0).
-    let mut css = bread_theme::stylesheet(palette);
+    //
+    // `bread_theme::stylesheet` picked up a required Typography parameter on
+    // bread-ecosystem main (ECO-38 dev-track check surfaced the mismatch
+    // against breadpad's tagged v0.7.4 pin): every other caller in bread-theme
+    // itself (gtk.rs, output.rs) resolves it via `Typography::active()`, the
+    // active shell theme's font tokens, so this matches that instead of
+    // freezing breadpad to the BREAD_DESIGN_SYSTEM baseline via `::default()`.
+    let mut css = bread_theme::stylesheet(&bread_theme::Typography::active(), palette);
 
     css.push_str(
         r#"
