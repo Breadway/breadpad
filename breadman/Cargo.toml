@@ -30,7 +30,7 @@ tauri-build = { version = "2" }
 breadpad-shared = { path = "../breadpad-shared" }
 # Palette loading + the web CSS-custom-property bridge (`css_custom_properties`,
 # `css_tokens`); gtk-free, so no `gtk`/`adw` feature here.
-bread-theme = { git = "https://git.breadway.dev/Breadway/bread-ecosystem", tag = "v0.7.4" }
+bread-theme = { git = "https://git.breadway.dev/Breadway/bread-ecosystem", tag = "v0.8.0" }
 # `--screenshot` capture (grim, compositor-agnostic) and the shared CLI flag
 # parsing/settle-delay; same tag breadpad already pins these at.
 bread-screenshots = { git = "https://git.breadway.dev/Breadway/bread-ecosystem", tag = "v0.7.2" }
