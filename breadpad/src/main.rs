@@ -54,6 +54,34 @@ mod args {
     use bread_utils::screenshot_cli::{validate_pair, DEFAULT_HEIGHT, DEFAULT_WIDTH};
     use std::path::Path;
 
+    /// Kept in step with [`parse_from`] and the commands handled in `main`.
+    pub const USAGE: &str = concat!(
+        "breadpad ",
+        env!("CARGO_PKG_VERSION"),
+        "\n",
+        "Quick capture and reminders for Bread OS\n\n",
+        "Usage:\n",
+        "  breadpad [options]\n",
+        "  breadpad <command>\n\n",
+        "Options:\n",
+        "  -t, --type <type>        Start the capture popup with this note type\n",
+        "      --no-classify        Skip the classifier for this capture\n",
+        "      --status             Print note and model status\n",
+        "      --screenshot <view>  Render a view for screenshots and exit\n",
+        "      --output <path>      Screenshot output path\n",
+        "      --width <px>         Screenshot width\n",
+        "      --height <px>        Screenshot height\n",
+        "  -h, --help               Print this help and exit\n",
+        "      --version            Print the version and exit\n\n",
+        "Commands:\n",
+        "  listen                   Subscribe to the bread command bus\n",
+        "  fire <id>                Show a reminder for note <id>\n",
+        "  calendar test            Test the CalDAV connection\n",
+        "  calendar list-uid [<id>] Print CalDAV event UIDs, or one note's UID\n",
+        "  download-model           Print the classifier model paths to populate\n",
+        "  model-info               Show the classifier model and execution provider\n",
+    );
+
     #[derive(Debug)]
     pub struct Args {
         pub note_type: Option<String>,
@@ -69,6 +97,8 @@ mod args {
         pub width: u32,
         pub height: u32,
         pub listen: bool,
+        pub help: bool,
+        pub version: bool,
     }
 
     impl Args {
@@ -93,6 +123,14 @@ mod args {
     }
 
     pub fn parse() -> Args {
+        let raw: Vec<String> = std::env::args().skip(1).collect();
+        parse_from(&raw)
+    }
+
+    /// Split out from [`parse`] so the flags can be tested without touching
+    /// the process argv. `-h`/`--help` and `--version` are only recorded
+    /// here: `main` answers them before tracing, config loading or GTK.
+    pub fn parse_from(raw: &[String]) -> Args {
         let mut args = Args {
             note_type: None,
             no_classify: false,
@@ -107,11 +145,14 @@ mod args {
             width: DEFAULT_WIDTH,
             height: DEFAULT_HEIGHT,
             listen: false,
+            help: false,
+            version: false,
         };
-        let raw: Vec<String> = std::env::args().skip(1).collect();
         let mut i = 0;
         while i < raw.len() {
             match raw[i].as_str() {
+                "-h" | "--help" => args.help = true,
+                "--version" => args.version = true,
                 "--type" | "-t" => {
                     i += 1;
                     args.note_type = raw.get(i).cloned();
@@ -166,6 +207,19 @@ mod args {
 }
 
 fn main() -> Result<()> {
+    // Answer help and version before tracing, config loading, the breadd
+    // listener or any GTK setup. `--help` used to fall through to a normal
+    // capture popup, which looked like a hang and left a process running.
+    let args = args::parse();
+    if args.help {
+        print!("{}", args::USAGE);
+        return Ok(());
+    }
+    if args.version {
+        println!("breadpad {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::from_default_env()
@@ -173,7 +227,6 @@ fn main() -> Result<()> {
         )
         .init();
 
-    let args = args::parse();
     if args.listen {
         return listen::run();
     }
@@ -955,4 +1008,72 @@ fn apply_css(_cfg: &Config) {
     // Hot-reloads on `bread-theme reload` (recolours to the new wallpaper
     // palette and re-reads the user's style.css). See breadpad_shared::theme::apply_live.
     breadpad_shared::theme::apply_live();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::args::{parse_from, USAGE};
+
+    fn v(args: &[&str]) -> Vec<String> {
+        args.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn help_and_version_flags_are_recognised() {
+        assert!(parse_from(&v(&["-h"])).help);
+        assert!(parse_from(&v(&["--help"])).help);
+        assert!(parse_from(&v(&["--version"])).version);
+        // Help wins over ordinary flags rather than being lost among them.
+        let a = parse_from(&v(&["--version", "--type", "todo"]));
+        assert!(a.version);
+        assert_eq!(a.note_type.as_deref(), Some("todo"));
+    }
+
+    #[test]
+    fn normal_args_still_parse() {
+        let a = parse_from(&v(&[
+            "--type",
+            "idea",
+            "--no-classify",
+            "--screenshot",
+            "history",
+            "--output",
+            "/tmp/opencode/breadpad.png",
+            "--width",
+            "800",
+            "--height",
+            "600",
+        ]));
+        assert_eq!(a.note_type.as_deref(), Some("idea"));
+        assert!(a.no_classify);
+        assert_eq!(a.screenshot.as_deref(), Some("history"));
+        assert_eq!(a.output.as_deref(), Some("/tmp/opencode/breadpad.png"));
+        assert_eq!((a.width, a.height), (800, 600));
+        assert!(!a.help);
+        assert!(!a.version);
+    }
+
+    #[test]
+    fn usage_lists_the_supported_surface() {
+        for needle in [
+            "--help",
+            "--version",
+            "--type",
+            "--no-classify",
+            "--status",
+            "--screenshot",
+            "--output",
+            "--width",
+            "--height",
+            "listen",
+            "fire",
+            "calendar test",
+            "calendar list-uid",
+            "download-model",
+            "model-info",
+        ] {
+            assert!(USAGE.contains(needle), "usage is missing {needle}");
+        }
+        assert!(USAGE.contains(env!("CARGO_PKG_VERSION")));
+    }
 }
