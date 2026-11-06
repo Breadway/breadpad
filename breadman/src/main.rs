@@ -21,6 +21,32 @@ use std::path::PathBuf;
 /// `--screenshot <view>` doubles as the view selector (same convention as
 /// every other bread-ecosystem app's `--screenshot`), so it sets
 /// `initial_view` too when `--view` isn't also given.
+///
+/// Kept in step with [`parse_args_from`] and the commands handled in `main`.
+const USAGE: &str = concat!(
+    "breadman ",
+    env!("CARGO_PKG_VERSION"),
+    "\n",
+    "Breadpad manager for Bread OS\n\n",
+    "Usage:\n",
+    "  breadman [options]\n",
+    "  breadman --view <view>\n",
+    "  breadman done <id>\n",
+    "  breadman upcoming [--plain]\n",
+    "  breadman --screenshot <view> --output <path> [--width <px>] [--height <px>]\n\n",
+    "Options:\n",
+    "  -v, --view <view>        Open straight to a named view\n",
+    "      --screenshot <view>  Render a view for screenshots and exit\n",
+    "      --output <path>      Screenshot output path\n",
+    "      --width <px>         Screenshot width\n",
+    "      --height <px>        Screenshot height\n",
+    "  -h, --help               Print this help and exit\n",
+    "      --version            Print the version and exit\n\n",
+    "Commands:\n",
+    "  done <id>                Mark a note done, no GUI\n",
+    "  upcoming [--plain]       Print pending reminders/todos, no GUI\n",
+);
+
 struct Args {
     view: Option<String>,
     done_id: Option<String>,
@@ -29,9 +55,20 @@ struct Args {
     output: Option<PathBuf>,
     width: u32,
     height: u32,
+    help: bool,
+    version: bool,
 }
 
 fn parse_args() -> Args {
+    let raw: Vec<String> = std::env::args().skip(1).collect();
+    parse_args_from(&raw)
+}
+
+/// Split out from [`parse_args`] so the flags can be tested without touching
+/// the process argv. `-h`/`--help` and `--version` are only recorded here:
+/// `main` answers them before tracing, config, the single-instance lock or
+/// Tauri.
+fn parse_args_from(raw: &[String]) -> Args {
     let mut args = Args {
         view: None,
         done_id: None,
@@ -40,11 +77,14 @@ fn parse_args() -> Args {
         output: None,
         width: DEFAULT_WIDTH,
         height: DEFAULT_HEIGHT,
+        help: false,
+        version: false,
     };
-    let raw: Vec<String> = std::env::args().skip(1).collect();
     let mut i = 0;
     while i < raw.len() {
         match raw[i].as_str() {
+            "-h" | "--help" => args.help = true,
+            "--version" => args.version = true,
             "--view" | "-v" => {
                 i += 1;
                 args.view = raw.get(i).cloned();
@@ -70,11 +110,17 @@ fn parse_args() -> Args {
             }
             "--width" => {
                 i += 1;
-                args.width = raw.get(i).and_then(|s| s.parse().ok()).unwrap_or(args.width);
+                args.width = raw
+                    .get(i)
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(args.width);
             }
             "--height" => {
                 i += 1;
-                args.height = raw.get(i).and_then(|s| s.parse().ok()).unwrap_or(args.height);
+                args.height = raw
+                    .get(i)
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(args.height);
             }
             _ => {}
         }
@@ -99,14 +145,26 @@ impl Args {
 }
 
 fn main() -> Result<()> {
+    // Answer help and version before tracing, config loading, the
+    // single-instance lock, the store or any Tauri/GTK setup. `--help` used
+    // to fall through to the manager window, which looked like a hang and
+    // left a process running.
+    let args = parse_args();
+    if args.help {
+        print!("{USAGE}");
+        return Ok(());
+    }
+    if args.version {
+        println!("breadman {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::from_default_env()
                 .add_directive("breadman=info".parse().unwrap()),
         )
         .init();
-
-    let args = parse_args();
 
     if let Some(id) = &args.done_id {
         return cmd_done(id);
@@ -157,4 +215,79 @@ fn cmd_upcoming_plain() -> Result<()> {
         );
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_args_from, USAGE};
+
+    fn v(args: &[&str]) -> Vec<String> {
+        args.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn help_and_version_flags_are_recognised() {
+        assert!(parse_args_from(&v(&["-h"])).help);
+        assert!(parse_args_from(&v(&["--help"])).help);
+        assert!(parse_args_from(&v(&["--version"])).version);
+        // Help/version do not swallow the rest of the arguments.
+        let a = parse_args_from(&v(&["--version", "--view", "upcoming"]));
+        assert!(a.version);
+        assert_eq!(a.view.as_deref(), Some("upcoming"));
+    }
+
+    #[test]
+    fn normal_args_still_parse() {
+        let a = parse_args_from(&v(&[
+            "--view",
+            "upcoming",
+            "--screenshot",
+            "upcoming",
+            "--output",
+            "/tmp/opencode/breadman.png",
+            "--width",
+            "800",
+            "--height",
+            "600",
+        ]));
+        assert_eq!(a.view.as_deref(), Some("upcoming"));
+        assert_eq!(a.screenshot.as_deref(), Some("upcoming"));
+        assert_eq!(
+            a.output.as_deref().map(|p| p.to_str().unwrap()),
+            Some("/tmp/opencode/breadman.png")
+        );
+        assert_eq!((a.width, a.height), (800, 600));
+        assert!(!a.help);
+        assert!(!a.version);
+    }
+
+    #[test]
+    fn commands_still_parse() {
+        let done = parse_args_from(&v(&["done", "note-42"]));
+        assert_eq!(done.done_id.as_deref(), Some("note-42"));
+
+        let upcoming = parse_args_from(&v(&["upcoming", "--plain"]));
+        assert!(upcoming.upcoming_plain);
+        assert_eq!(upcoming.view.as_deref(), Some("upcoming"));
+    }
+
+    #[test]
+    fn usage_lists_the_supported_surface() {
+        for needle in [
+            "--help",
+            "--version",
+            "--view",
+            "-v",
+            "--screenshot",
+            "--output",
+            "--width",
+            "--height",
+            "done",
+            "upcoming",
+            "--plain",
+        ] {
+            assert!(USAGE.contains(needle), "usage is missing {needle}");
+        }
+        assert!(USAGE.contains(env!("CARGO_PKG_VERSION")));
+    }
 }
