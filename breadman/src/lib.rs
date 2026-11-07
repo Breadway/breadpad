@@ -101,6 +101,7 @@ pub fn run(initial_view: Option<String>, screenshot: Option<ScreenshotRequest>) 
             commands::save_config,
             commands::list_errors,
             commands::classify_preview,
+            commands::repeat_preset,
             commands::create_note,
             commands::update_note,
             commands::set_done,

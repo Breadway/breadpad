@@ -3,7 +3,7 @@
 
 use crate::state::{AppState, ErrorEntry};
 use breadpad_shared::config::Config;
-use breadpad_shared::parser::parse_rule_based;
+use breadpad_shared::parser::{parse_rule_based, parse_time_input};
 use breadpad_shared::scheduler::Scheduler;
 use breadpad_shared::types::{Note, NoteType, RecurrenceRule};
 use tauri::State;
@@ -92,6 +92,28 @@ pub fn classify_preview(state: State<AppState>, body: String) -> ClassifyHint {
     }
 }
 
+/// Turn one of the editor's friendly Repeat choices into the RRULE the store
+/// keeps. The anchor comes from the current Time field, falling back to the
+/// configured default morning. Unknown keys are an error, never a silent no-op.
+#[tauri::command]
+pub fn repeat_preset(
+    state: State<AppState>,
+    preset: String,
+    time_text: String,
+) -> CmdResult<String> {
+    breadpad_shared::parser::preset_rrule(&preset, &time_text, &state.default_morning())
+        .ok_or_else(|| format!("unknown repeat choice \"{preset}\""))
+}
+
+/// A recurring note needs a first occurrence or `Scheduler::schedule` has
+/// nothing to arm. Presets can be picked while the Time field is empty, so fill
+/// the next occurrence from the rule in that case.
+fn ensure_first_occurrence(note: &mut Note, morning: &str) {
+    if note.rrule.is_some() && note.time.is_none() {
+        note.time = Scheduler::next_recurrence(note, morning);
+    }
+}
+
 /// Resolve the editor's free-text time field to a concrete instant by
 /// running it back through the rule-based parser.
 fn parse_time_text(
@@ -100,13 +122,9 @@ fn parse_time_text(
 ) -> Result<Option<chrono::DateTime<chrono::Utc>>, String> {
     match opt(text) {
         None => Ok(None),
-        Some(t) => {
-            let parsed = parse_rule_based(t, morning);
-            parsed
-                .time
-                .map(Some)
-                .ok_or_else(|| format!("couldn't read a time from \"{t}\""))
-        }
+        Some(t) => parse_time_input(t, morning)
+            .map(Some)
+            .ok_or_else(|| format!("couldn't read a time from \"{t}\"")),
     }
 }
 
@@ -136,6 +154,7 @@ pub fn create_note(state: State<AppState>, draft: NoteDraft) -> CmdResult<Note> 
         Some(r) => Some(RecurrenceRule::new(r)),
         None => parsed.rrule,
     };
+    ensure_first_occurrence(&mut note, &morning);
 
     state
         .write_store()
@@ -164,6 +183,7 @@ pub fn update_note(state: State<AppState>, id: String, draft: NoteDraft) -> CmdR
     }
     note.time = parse_time_text(&draft.time_text, &morning)?;
     note.rrule = opt(&draft.rrule).map(RecurrenceRule::new);
+    ensure_first_occurrence(&mut note, &morning);
 
     store.update_note(&note).map_err(|e| e.to_string())?;
     Scheduler::cancel(&note.id).ok();
@@ -207,4 +227,55 @@ pub fn delete_note(state: State<AppState>, id: String) -> CmdResult<()> {
         .map_err(|e| e.to_string())?;
     Scheduler::cancel(&id).ok();
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Timelike;
+
+    #[test]
+    fn parse_time_text_accepts_editor_display_stamp() {
+        let t = parse_time_text("2030-01-15 09:00", "08:00")
+            .expect("absolute stamp should parse")
+            .expect("stamp should yield a time");
+        let local: chrono::DateTime<chrono::Local> = t.into();
+        assert_eq!(local.hour(), 9);
+        assert_eq!(local.minute(), 0);
+    }
+
+    #[test]
+    fn parse_time_text_still_accepts_relative_phrases() {
+        let t = parse_time_text("tomorrow morning", "07:30")
+            .expect("relative phrase should parse")
+            .expect("phrase should yield a time");
+        let local: chrono::DateTime<chrono::Local> = t.into();
+        assert_eq!(local.hour(), 7);
+        assert_eq!(local.minute(), 30);
+    }
+
+    #[test]
+    fn parse_time_text_rejects_unreadable_text() {
+        assert!(parse_time_text("whenever", "08:00").is_err());
+    }
+
+    #[test]
+    fn recurring_note_without_time_gets_first_occurrence() {
+        let mut note = Note::new("daily sync".into(), NoteType::Reminder, None);
+        note.rrule = Some(RecurrenceRule::new(
+            "RRULE:FREQ=DAILY;BYHOUR=8;BYMINUTE=0;BYSECOND=0",
+        ));
+        ensure_first_occurrence(&mut note, "08:00");
+        assert!(
+            note.time.is_some(),
+            "recurring note should get a start time"
+        );
+    }
+
+    #[test]
+    fn one_off_note_without_time_stays_untimed() {
+        let mut note = Note::new("plain note".into(), NoteType::Note, None);
+        ensure_first_occurrence(&mut note, "08:00");
+        assert!(note.time.is_none());
+    }
 }

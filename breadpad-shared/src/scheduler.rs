@@ -8,7 +8,9 @@ pub struct Scheduler;
 
 impl Scheduler {
     pub fn schedule(note: &Note) -> Result<()> {
-        let fire_time = note.effective_time().context("note has no scheduled time")?;
+        let fire_time = note
+            .effective_time()
+            .context("note has no scheduled time")?;
         create_timer(&note.id, fire_time)
     }
 
@@ -32,7 +34,11 @@ impl Scheduler {
         if let Some(t) = note.effective_time() {
             let diff = now.signed_duration_since(t);
             if diff > Duration::minutes(missed_grace_minutes) {
-                tracing::info!("reminder {} missed ({}m ago), skipping", note.id, diff.num_minutes());
+                tracing::info!(
+                    "reminder {} missed ({}m ago), skipping",
+                    note.id,
+                    diff.num_minutes()
+                );
                 return false;
             }
         }
@@ -96,19 +102,18 @@ fn create_timer(id: &str, fire_time: DateTime<Utc>) -> Result<()> {
 
     // Pass DBUS and display environment variables so notify-send works
     if let Ok(dbus) = std::env::var("DBUS_SESSION_BUS_ADDRESS") {
-        cmd.arg("--setenv").arg(format!("DBUS_SESSION_BUS_ADDRESS={}", dbus));
+        cmd.arg("--setenv")
+            .arg(format!("DBUS_SESSION_BUS_ADDRESS={}", dbus));
     }
     if let Ok(display) = std::env::var("DISPLAY") {
         cmd.arg("--setenv").arg(format!("DISPLAY={}", display));
     }
     if let Ok(wayland) = std::env::var("WAYLAND_DISPLAY") {
-        cmd.arg("--setenv").arg(format!("WAYLAND_DISPLAY={}", wayland));
+        cmd.arg("--setenv")
+            .arg(format!("WAYLAND_DISPLAY={}", wayland));
     }
 
-    cmd.arg("--")
-        .arg(&breadpad_exe)
-        .arg("fire")
-        .arg(id);
+    cmd.arg("--").arg(&breadpad_exe).arg("fire").arg(id);
 
     let status = cmd.status().context("failed to run systemd-run")?;
 
@@ -116,7 +121,12 @@ fn create_timer(id: &str, fire_time: DateTime<Utc>) -> Result<()> {
         anyhow::bail!("systemd-run failed for reminder {}", id);
     }
 
-    tracing::info!("scheduled reminder {} at {} using {}", id, on_calendar, breadpad_exe.display());
+    tracing::info!(
+        "scheduled reminder {} at {} using {}",
+        id,
+        on_calendar,
+        breadpad_exe.display()
+    );
     Ok(())
 }
 
@@ -136,7 +146,10 @@ fn disable_unit(unit: &str) -> Result<()> {
     Ok(())
 }
 
-pub(crate) fn parse_next_from_rrule(rrule_str: &str, default_morning: &str) -> Option<DateTime<Utc>> {
+pub(crate) fn parse_next_from_rrule(
+    rrule_str: &str,
+    default_morning: &str,
+) -> Option<DateTime<Utc>> {
     // (see tests module below for coverage)
     // Parse RRULE:FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0 etc.
     // We extract FREQ, BYDAY, BYHOUR, BYMINUTE to compute next occurrence.
@@ -162,8 +175,14 @@ pub(crate) fn parse_next_from_rrule(rrule_str: &str, default_morning: &str) -> O
         let m = it.next().and_then(|s| s.parse().ok()).unwrap_or(0);
         (h, m)
     };
-    let hour: u32 = parts.get("BYHOUR").and_then(|v| v.parse().ok()).unwrap_or(default_h);
-    let minute: u32 = parts.get("BYMINUTE").and_then(|v| v.parse().ok()).unwrap_or(default_m);
+    let hour: u32 = parts
+        .get("BYHOUR")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default_h);
+    let minute: u32 = parts
+        .get("BYMINUTE")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default_m);
 
     let now = Local::now();
     let fire_time = NaiveTime::from_hms_opt(hour, minute, 0)?;
@@ -180,31 +199,69 @@ pub(crate) fn parse_next_from_rrule(rrule_str: &str, default_morning: &str) -> O
         }
         "WEEKLY" => {
             use chrono::Datelike;
-            let byday = parts.get("BYDAY").unwrap_or(&"MO");
-            let target_wd = match *byday {
-                "MO" => chrono::Weekday::Mon,
-                "TU" => chrono::Weekday::Tue,
-                "WE" => chrono::Weekday::Wed,
-                "TH" => chrono::Weekday::Thu,
-                "FR" => chrono::Weekday::Fri,
-                "SA" => chrono::Weekday::Sat,
-                _ => chrono::Weekday::Sun,
-            };
-            let days_ahead = (target_wd.num_days_from_monday() as i64
-                - now.weekday().num_days_from_monday() as i64)
-                .rem_euclid(7);
-            let days_ahead = if days_ahead == 0 {
-                if now.time() < fire_time {
-                    0
-                } else {
-                    7
+            let byday = parts.get("BYDAY").copied().unwrap_or("MO");
+            let mut target_days: Vec<chrono::Weekday> = byday
+                .split(',')
+                .filter_map(|day| match day.trim() {
+                    "MO" => Some(chrono::Weekday::Mon),
+                    "TU" => Some(chrono::Weekday::Tue),
+                    "WE" => Some(chrono::Weekday::Wed),
+                    "TH" => Some(chrono::Weekday::Thu),
+                    "FR" => Some(chrono::Weekday::Fri),
+                    "SA" => Some(chrono::Weekday::Sat),
+                    "SU" => Some(chrono::Weekday::Sun),
+                    _ => None,
+                })
+                .collect();
+            // Preserve the historical fallback for an unrecognised BYDAY.
+            if target_days.is_empty() {
+                target_days.push(chrono::Weekday::Sun);
+            }
+            for offset in 0..=7 {
+                let date = now.date_naive() + chrono::Duration::days(offset);
+                if !target_days.contains(&date.weekday()) {
+                    continue;
                 }
-            } else {
-                days_ahead
-            };
-            let target_date =
-                (now.date_naive() + chrono::Duration::days(days_ahead)).and_time(fire_time);
-            Some(local_naive_to_utc(target_date))
+                if offset == 0 && now.time() >= fire_time {
+                    continue;
+                }
+                return Some(local_naive_to_utc(date.and_time(fire_time)));
+            }
+            None
+        }
+        "MONTHLY" => {
+            use chrono::{Datelike, Months, NaiveDate};
+            let mut days: Vec<u32> = parts
+                .get("BYMONTHDAY")
+                .map(|value| {
+                    value
+                        .split(',')
+                        .filter_map(|day| day.trim().parse::<u32>().ok())
+                        .filter(|day| (1..=31).contains(day))
+                        .collect()
+                })
+                .unwrap_or_default();
+            if days.is_empty() {
+                days.push(now.day());
+            }
+            days.sort_unstable();
+            let first_of_month = NaiveDate::from_ymd_opt(now.year(), now.month(), 1)?;
+            for offset in 0..=12 {
+                let month = first_of_month.checked_add_months(Months::new(offset))?;
+                for &day in &days {
+                    // RFC 5545: skip months where the day does not exist
+                    // (for example BYMONTHDAY=31 in February).
+                    let Some(date) = NaiveDate::from_ymd_opt(month.year(), month.month(), day)
+                    else {
+                        continue;
+                    };
+                    let candidate = date.and_time(fire_time);
+                    if candidate >= now.naive_local() {
+                        return Some(local_naive_to_utc(candidate));
+                    }
+                }
+            }
+            None
         }
         _ => None,
     }
@@ -268,7 +325,6 @@ mod tests {
         let mut note = reminder("snoozed");
         note.time = Some(Utc::now() - Duration::hours(5)); // original would be missed
         note.snoozed_until = Some(Utc::now() - Duration::minutes(5)); // snooze is recent
-        // effective_time = snoozed_until (5 min ago), grace = 60 → fires
         assert!(Scheduler::fire(&note, 60));
     }
 
@@ -294,7 +350,9 @@ mod tests {
     #[test]
     fn next_recurrence_daily_in_future() {
         let mut note = reminder("daily");
-        note.rrule = Some(RecurrenceRule::new("RRULE:FREQ=DAILY;BYHOUR=8;BYMINUTE=0;BYSECOND=0"));
+        note.rrule = Some(RecurrenceRule::new(
+            "RRULE:FREQ=DAILY;BYHOUR=8;BYMINUTE=0;BYSECOND=0",
+        ));
         let t = Scheduler::next_recurrence(&note, "08:00").unwrap();
         assert!(t >= Utc::now());
     }
@@ -302,7 +360,9 @@ mod tests {
     #[test]
     fn next_recurrence_weekly_is_correct_weekday() {
         let mut note = reminder("weekly-mon");
-        note.rrule = Some(RecurrenceRule::new("RRULE:FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0"));
+        note.rrule = Some(RecurrenceRule::new(
+            "RRULE:FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
+        ));
         let t = Scheduler::next_recurrence(&note, "08:00").unwrap();
         let local: chrono::DateTime<Local> = t.into();
         assert_eq!(local.weekday(), chrono::Weekday::Mon);
@@ -319,7 +379,8 @@ mod tests {
 
     #[test]
     fn daily_rrule_correct_hour() {
-        let t = parse_next_from_rrule("RRULE:FREQ=DAILY;BYHOUR=14;BYMINUTE=30;BYSECOND=0", "08:00").unwrap();
+        let t = parse_next_from_rrule("RRULE:FREQ=DAILY;BYHOUR=14;BYMINUTE=30;BYSECOND=0", "08:00")
+            .unwrap();
         let local: chrono::DateTime<Local> = t.into();
         assert_eq!(local.hour(), 14);
         assert_eq!(local.minute(), 30);
@@ -336,7 +397,11 @@ mod tests {
 
     #[test]
     fn weekly_monday_is_monday() {
-        let t = parse_next_from_rrule("RRULE:FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0", "08:00").unwrap();
+        let t = parse_next_from_rrule(
+            "RRULE:FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
+            "08:00",
+        )
+        .unwrap();
         let local: chrono::DateTime<Local> = t.into();
         assert_eq!(local.weekday(), chrono::Weekday::Mon);
         assert!(t >= Utc::now());
@@ -344,14 +409,22 @@ mod tests {
 
     #[test]
     fn weekly_friday_is_friday() {
-        let t = parse_next_from_rrule("RRULE:FREQ=WEEKLY;BYDAY=FR;BYHOUR=12;BYMINUTE=0;BYSECOND=0", "08:00").unwrap();
+        let t = parse_next_from_rrule(
+            "RRULE:FREQ=WEEKLY;BYDAY=FR;BYHOUR=12;BYMINUTE=0;BYSECOND=0",
+            "08:00",
+        )
+        .unwrap();
         let local: chrono::DateTime<Local> = t.into();
         assert_eq!(local.weekday(), chrono::Weekday::Fri);
     }
 
     #[test]
     fn weekly_wednesday_correct_hour() {
-        let t = parse_next_from_rrule("RRULE:FREQ=WEEKLY;BYDAY=WE;BYHOUR=15;BYMINUTE=45;BYSECOND=0", "08:00").unwrap();
+        let t = parse_next_from_rrule(
+            "RRULE:FREQ=WEEKLY;BYDAY=WE;BYHOUR=15;BYMINUTE=45;BYSECOND=0",
+            "08:00",
+        )
+        .unwrap();
         let local: chrono::DateTime<Local> = t.into();
         assert_eq!(local.hour(), 15);
         assert_eq!(local.minute(), 45);
@@ -359,21 +432,33 @@ mod tests {
 
     #[test]
     fn weekly_saturday_is_saturday() {
-        let t = parse_next_from_rrule("RRULE:FREQ=WEEKLY;BYDAY=SA;BYHOUR=10;BYMINUTE=0;BYSECOND=0", "08:00").unwrap();
+        let t = parse_next_from_rrule(
+            "RRULE:FREQ=WEEKLY;BYDAY=SA;BYHOUR=10;BYMINUTE=0;BYSECOND=0",
+            "08:00",
+        )
+        .unwrap();
         let local: chrono::DateTime<Local> = t.into();
         assert_eq!(local.weekday(), chrono::Weekday::Sat);
     }
 
     #[test]
     fn weekly_tuesday_is_tuesday() {
-        let t = parse_next_from_rrule("RRULE:FREQ=WEEKLY;BYDAY=TU;BYHOUR=10;BYMINUTE=0;BYSECOND=0", "08:00").unwrap();
+        let t = parse_next_from_rrule(
+            "RRULE:FREQ=WEEKLY;BYDAY=TU;BYHOUR=10;BYMINUTE=0;BYSECOND=0",
+            "08:00",
+        )
+        .unwrap();
         let local: chrono::DateTime<Local> = t.into();
         assert_eq!(local.weekday(), chrono::Weekday::Tue);
     }
 
     #[test]
     fn weekly_thursday_is_thursday() {
-        let t = parse_next_from_rrule("RRULE:FREQ=WEEKLY;BYDAY=TH;BYHOUR=11;BYMINUTE=30;BYSECOND=0", "08:00").unwrap();
+        let t = parse_next_from_rrule(
+            "RRULE:FREQ=WEEKLY;BYDAY=TH;BYHOUR=11;BYMINUTE=30;BYSECOND=0",
+            "08:00",
+        )
+        .unwrap();
         let local: chrono::DateTime<Local> = t.into();
         assert_eq!(local.weekday(), chrono::Weekday::Thu);
         assert_eq!(local.minute(), 30);
@@ -381,7 +466,11 @@ mod tests {
 
     #[test]
     fn weekly_sunday_is_sunday() {
-        let t = parse_next_from_rrule("RRULE:FREQ=WEEKLY;BYDAY=SU;BYHOUR=19;BYMINUTE=0;BYSECOND=0", "08:00").unwrap();
+        let t = parse_next_from_rrule(
+            "RRULE:FREQ=WEEKLY;BYDAY=SU;BYHOUR=19;BYMINUTE=0;BYSECOND=0",
+            "08:00",
+        )
+        .unwrap();
         let local: chrono::DateTime<Local> = t.into();
         assert_eq!(local.weekday(), chrono::Weekday::Sun);
     }
@@ -389,9 +478,75 @@ mod tests {
     #[test]
     fn weekly_unknown_byday_falls_back_to_sunday() {
         // The match arm `_ => Weekday::Sun` handles unrecognised BYDAY values
-        let t = parse_next_from_rrule("RRULE:FREQ=WEEKLY;BYDAY=XX;BYHOUR=9;BYMINUTE=0;BYSECOND=0", "08:00").unwrap();
+        let t = parse_next_from_rrule(
+            "RRULE:FREQ=WEEKLY;BYDAY=XX;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
+            "08:00",
+        )
+        .unwrap();
         let local: chrono::DateTime<Local> = t.into();
         assert_eq!(local.weekday(), chrono::Weekday::Sun);
+    }
+
+    #[test]
+    fn weekly_weekday_list_picks_a_weekday() {
+        let t = parse_next_from_rrule(
+            "RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=8;BYMINUTE=0;BYSECOND=0",
+            "08:00",
+        )
+        .unwrap();
+        let local: chrono::DateTime<Local> = t.into();
+        assert!(matches!(
+            local.weekday(),
+            chrono::Weekday::Mon
+                | chrono::Weekday::Tue
+                | chrono::Weekday::Wed
+                | chrono::Weekday::Thu
+                | chrono::Weekday::Fri
+        ));
+        assert!(t >= Utc::now());
+    }
+
+    #[test]
+    fn weekly_weekday_list_is_within_the_next_week() {
+        let t = parse_next_from_rrule(
+            "RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=8;BYMINUTE=0;BYSECOND=0",
+            "08:00",
+        )
+        .unwrap();
+        assert!(t - Utc::now() <= Duration::days(7));
+    }
+
+    #[test]
+    fn monthly_by_monthday_is_future_and_correct_day() {
+        let t = parse_next_from_rrule(
+            "RRULE:FREQ=MONTHLY;BYMONTHDAY=15;BYHOUR=10;BYMINUTE=30;BYSECOND=0",
+            "08:00",
+        )
+        .unwrap();
+        let local: chrono::DateTime<Local> = t.into();
+        assert_eq!(local.day(), 15);
+        assert_eq!(local.hour(), 10);
+        assert_eq!(local.minute(), 30);
+        assert!(t >= Utc::now());
+    }
+
+    #[test]
+    fn monthly_without_bymonthday_uses_current_day() {
+        let t = parse_next_from_rrule("RRULE:FREQ=MONTHLY;BYHOUR=9;BYMINUTE=0", "08:00").unwrap();
+        let local: chrono::DateTime<Local> = t.into();
+        let now: chrono::DateTime<Local> = Local::now();
+        assert_eq!(local.day(), now.day());
+    }
+
+    #[test]
+    fn monthly_end_of_month_stays_valid() {
+        let t = parse_next_from_rrule(
+            "RRULE:FREQ=MONTHLY;BYMONTHDAY=31;BYHOUR=9;BYMINUTE=0;BYSECOND=0",
+            "08:00",
+        )
+        .unwrap();
+        let local: chrono::DateTime<Local> = t.into();
+        assert_eq!(local.day(), 31);
     }
 
     #[test]
@@ -404,7 +559,7 @@ mod tests {
 
     #[test]
     fn unknown_freq_returns_none() {
-        assert!(parse_next_from_rrule("RRULE:FREQ=MONTHLY;BYHOUR=9;BYMINUTE=0", "08:00").is_none());
+        assert!(parse_next_from_rrule("RRULE:FREQ=YEARLY;BYHOUR=9;BYMINUTE=0", "08:00").is_none());
     }
 
     #[test]
@@ -428,6 +583,9 @@ mod tests {
 
     #[test]
     fn service_unit_name_format() {
-        assert_eq!(service_unit_name("abc123"), "breadpad-reminder-abc123.service");
+        assert_eq!(
+            service_unit_name("abc123"),
+            "breadpad-reminder-abc123.service"
+        );
     }
 }

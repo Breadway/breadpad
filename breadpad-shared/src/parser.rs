@@ -1,10 +1,11 @@
 use crate::types::{ClassificationResult, NoteType, RecurrenceRule};
 use crate::util::local_naive_to_utc;
-use chrono::{DateTime, Datelike, Duration, Local, NaiveTime, Timelike, Utc, Weekday};
+use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, NaiveTime, Timelike, Utc, Weekday};
 use regex::Regex;
 use std::sync::OnceLock;
 
 struct Patterns {
+    absolute_datetime: Regex,
     at_time: Regex,
     in_duration: Regex,
     in_duration_word: Regex,
@@ -22,6 +23,12 @@ static PATTERNS: OnceLock<Patterns> = OnceLock::new();
 
 fn patterns() -> &'static Patterns {
     PATTERNS.get_or_init(|| Patterns {
+        // Absolute local stamps, matching the editor's display format:
+        // "2026-11-08 09:00" or "2026-11-08T09:00".
+        absolute_datetime: Regex::new(
+            r"(?i)\b(\d{4})-(\d{2})-(\d{2})(?:[ t](\d{1,2}):(\d{2}))?\b",
+        )
+        .unwrap(),
         at_time: Regex::new(r"(?i)\bat\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?").unwrap(),
         in_duration: Regex::new(r"(?i)\bin\s+(\d+)\s+(second|minute|hour|day|week)s?").unwrap(),
         // Word-form durations: "in an hour", "in a couple of hours", "in half an hour"
@@ -59,6 +66,115 @@ fn parse_time_of_day(hour: &str, min: Option<&str>, ampm: Option<&str>) -> Naive
         }
     }
     NaiveTime::from_hms_opt(h, m, 0).unwrap_or(NaiveTime::from_hms_opt(9, 0, 0).unwrap())
+}
+
+fn parse_hhmm(s: &str) -> Option<NaiveTime> {
+    let mut parts = s.split(':');
+    let h: u32 = parts.next()?.trim().parse().ok()?;
+    let m: u32 = parts.next()?.trim().parse().ok()?;
+    NaiveTime::from_hms_opt(h, m, 0)
+}
+
+/// Parse an absolute local stamp from the editor's Time field. Captures are the
+/// `absolute_datetime` groups: year, month, day, optional hour, optional minute.
+fn parse_absolute_datetime(
+    caps: &regex::Captures<'_>,
+    fallback_time: NaiveTime,
+) -> Option<DateTime<Utc>> {
+    let year: i32 = caps.get(1)?.as_str().parse().ok()?;
+    let month: u32 = caps.get(2)?.as_str().parse().ok()?;
+    let day: u32 = caps.get(3)?.as_str().parse().ok()?;
+    let date = NaiveDate::from_ymd_opt(year, month, day)?;
+    let time = match (caps.get(4), caps.get(5)) {
+        (Some(hour), Some(minute)) => NaiveTime::from_hms_opt(
+            hour.as_str().parse().ok()?,
+            minute.as_str().parse().ok()?,
+            0,
+        )?,
+        _ => fallback_time,
+    };
+    Some(local_naive_to_utc(date.and_time(time)))
+}
+
+/// Friendly Repeat choices exposed by the editor. The raw RRULE stays the
+/// storage format; these are just the named shapes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RepeatPreset {
+    None,
+    Daily,
+    Weekly,
+    Monthly,
+    Weekdays,
+}
+
+impl RepeatPreset {
+    pub fn from_key(key: &str) -> Option<Self> {
+        match key.trim().to_ascii_lowercase().as_str() {
+            "" | "none" => Some(Self::None),
+            "daily" => Some(Self::Daily),
+            "weekly" => Some(Self::Weekly),
+            "monthly" => Some(Self::Monthly),
+            "weekdays" => Some(Self::Weekdays),
+            _ => None,
+        }
+    }
+
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Daily => "daily",
+            Self::Weekly => "weekly",
+            Self::Monthly => "monthly",
+            Self::Weekdays => "weekdays",
+        }
+    }
+}
+
+/// Build the RRULE an editor preset stores. The anchor day and clock time come
+/// from `time_text` when it resolves (so Weekly repeats on the weekday the note
+/// is actually due, and Monthly on its day-of-month); otherwise they fall back
+/// to today and the configured default morning.
+pub fn preset_rrule(preset: &str, time_text: &str, default_morning: &str) -> Option<String> {
+    let preset = RepeatPreset::from_key(preset)?;
+    if preset == RepeatPreset::None {
+        return Some(String::new());
+    }
+
+    let anchor = if time_text.trim().is_empty() {
+        None
+    } else {
+        parse_time_input(time_text, default_morning)
+    };
+    let local_anchor: DateTime<Local> = anchor.map(Into::into).unwrap_or_else(Local::now);
+    let fallback_time =
+        parse_hhmm(default_morning).unwrap_or_else(|| NaiveTime::from_hms_opt(8, 0, 0).unwrap());
+    let time = anchor
+        .map(|t| {
+            let local: DateTime<Local> = t.into();
+            NaiveTime::from_hms_opt(local.hour(), local.minute(), 0).unwrap_or(fallback_time)
+        })
+        .unwrap_or(fallback_time);
+    let hour = time.hour();
+    let minute = time.minute();
+
+    let rule = match preset {
+        RepeatPreset::Daily => {
+            format!("RRULE:FREQ=DAILY;BYHOUR={hour};BYMINUTE={minute};BYSECOND=0")
+        }
+        RepeatPreset::Weekly => format!(
+            "RRULE:FREQ=WEEKLY;BYDAY={};BYHOUR={hour};BYMINUTE={minute};BYSECOND=0",
+            rrule_weekday(local_anchor.weekday())
+        ),
+        RepeatPreset::Monthly => format!(
+            "RRULE:FREQ=MONTHLY;BYMONTHDAY={};BYHOUR={hour};BYMINUTE={minute};BYSECOND=0",
+            local_anchor.day()
+        ),
+        RepeatPreset::Weekdays => format!(
+            "RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR={hour};BYMINUTE={minute};BYSECOND=0"
+        ),
+        RepeatPreset::None => String::new(),
+    };
+    Some(rule)
 }
 
 fn weekday_from_str(s: &str) -> Weekday {
@@ -106,17 +222,8 @@ fn next_occurrence_of_weekday(wd: Weekday, time: NaiveTime) -> DateTime<Utc> {
 
 pub fn parse_rule_based(text: &str, default_morning: &str) -> ClassificationResult {
     let p = patterns();
-    let morning_time: NaiveTime = default_morning
-        .split(':')
-        .collect::<Vec<_>>()
-        .as_slice()
-        .get(..2)
-        .and_then(|parts| {
-            let h: u32 = parts[0].parse().ok()?;
-            let m: u32 = parts[1].parse().ok()?;
-            NaiveTime::from_hms_opt(h, m, 0)
-        })
-        .unwrap_or(NaiveTime::from_hms_opt(8, 0, 0).unwrap());
+    let morning_time =
+        parse_hhmm(default_morning).unwrap_or_else(|| NaiveTime::from_hms_opt(8, 0, 0).unwrap());
 
     let evening_time = NaiveTime::from_hms_opt(18, 0, 0).unwrap();
 
@@ -160,7 +267,11 @@ pub fn parse_rule_based(text: &str, default_morning: &str) -> ClassificationResu
     // Recurrence: every weekday (Mon–Fri)
     else if let Some(caps) = p.every_weekdays.captures(text) {
         let t = if let Some(h) = caps.get(1) {
-            parse_time_of_day(h.as_str(), caps.get(2).map(|x| x.as_str()), caps.get(3).map(|x| x.as_str()))
+            parse_time_of_day(
+                h.as_str(),
+                caps.get(2).map(|x| x.as_str()),
+                caps.get(3).map(|x| x.as_str()),
+            )
         } else {
             match caps.get(4).map(|x| x.as_str().to_lowercase()).as_deref() {
                 Some("afternoon") => NaiveTime::from_hms_opt(14, 0, 0).unwrap(),
@@ -236,7 +347,11 @@ pub fn parse_rule_based(text: &str, default_morning: &str) -> ClassificationResu
             let delta = if phrase.contains("half") {
                 Duration::minutes(30)
             } else if phrase.contains("couple") {
-                if phrase.contains("hour") { Duration::hours(2) } else { Duration::minutes(2) }
+                if phrase.contains("hour") {
+                    Duration::hours(2)
+                } else {
+                    Duration::minutes(2)
+                }
             } else if phrase.contains("few") {
                 Duration::hours(3)
             } else if phrase.contains("hour") {
@@ -324,10 +439,32 @@ pub fn parse_rule_based(text: &str, default_morning: &str) -> ClassificationResu
     }
 }
 
+/// Resolve the editor's free-text Time field. Unlike body classification, this
+/// accepts the absolute local stamps the editor itself displays.
+pub fn parse_time_input(text: &str, default_morning: &str) -> Option<DateTime<Utc>> {
+    let morning_time =
+        parse_hhmm(default_morning).unwrap_or_else(|| NaiveTime::from_hms_opt(8, 0, 0).unwrap());
+    if let Some(caps) = patterns().absolute_datetime.captures(text) {
+        if let Some(t) = parse_absolute_datetime(&caps, morning_time) {
+            return Some(t);
+        }
+    }
+    parse_rule_based(text, default_morning).time
+}
+
 fn infer_type(text: &str, has_time: bool, has_rrule: bool) -> NoteType {
     let lower = text.to_lowercase();
     if has_rrule || has_time {
         return NoteType::Reminder;
+    }
+    // Explicit idea labels win over incidental action words ("idea: buy a
+    // bookshelf" is an idea, not a todo). "ideal ..." is deliberately excluded.
+    if lower.starts_with("idea:")
+        || lower.starts_with("idea ")
+        || lower.starts_with("ideas:")
+        || lower.starts_with("ideas for ")
+    {
+        return NoteType::Idea;
     }
     if lower.contains("buy ")
         || lower.contains("pick up")
@@ -360,7 +497,6 @@ fn infer_type(text: &str, has_time: bool, has_rrule: bool) -> NoteType {
         return NoteType::Todo;
     }
     if lower.starts_with("what if ")
-        || lower.starts_with("idea:")
         || lower.contains("could ")
         || lower.contains("maybe ")
         || lower.starts_with("should we ")
@@ -442,17 +578,26 @@ mod tests {
 
     #[test]
     fn question_why() {
-        assert_eq!(p("why does nmcli drop on suspend").note_type, NoteType::Question);
+        assert_eq!(
+            p("why does nmcli drop on suspend").note_type,
+            NoteType::Question
+        );
     }
 
     #[test]
     fn question_how() {
-        assert_eq!(p("how do I configure zbus async").note_type, NoteType::Question);
+        assert_eq!(
+            p("how do I configure zbus async").note_type,
+            NoteType::Question
+        );
     }
 
     #[test]
     fn question_what_prefix() {
-        assert_eq!(p("what is the difference between Arc and Rc").note_type, NoteType::Question);
+        assert_eq!(
+            p("what is the difference between Arc and Rc").note_type,
+            NoteType::Question
+        );
     }
 
     #[test]
@@ -463,22 +608,51 @@ mod tests {
 
     #[test]
     fn idea_what_if() {
-        assert_eq!(p("what if breadman had a calendar view").note_type, NoteType::Idea);
+        assert_eq!(
+            p("what if breadman had a calendar view").note_type,
+            NoteType::Idea
+        );
     }
 
     #[test]
     fn idea_prefix() {
-        assert_eq!(p("idea: reactive state module in Lua").note_type, NoteType::Idea);
+        assert_eq!(
+            p("idea: reactive state module in Lua").note_type,
+            NoteType::Idea
+        );
     }
 
     #[test]
     fn idea_maybe() {
-        assert_eq!(p("maybe we could cache the ONNX model").note_type, NoteType::Idea);
+        assert_eq!(
+            p("maybe we could cache the ONNX model").note_type,
+            NoteType::Idea
+        );
     }
 
     #[test]
     fn idea_could() {
-        assert_eq!(p("the sidebar could show counts per type").note_type, NoteType::Idea);
+        assert_eq!(
+            p("the sidebar could show counts per type").note_type,
+            NoteType::Idea
+        );
+    }
+
+    #[test]
+    fn idea_plural_prefix_bookshelf() {
+        let r = p("Ideas for the weekend: build a bookshelf");
+        assert_eq!(r.note_type, NoteType::Idea);
+        assert_eq!(r.confidence, 0.84);
+    }
+
+    #[test]
+    fn idea_prefix_wins_over_incidental_action_word() {
+        assert_eq!(p("idea: buy a bookshelf").note_type, NoteType::Idea);
+    }
+
+    #[test]
+    fn ideal_is_not_an_idea() {
+        assert_eq!(p("ideal temperature is 20C").note_type, NoteType::Note);
     }
 
     #[test]
@@ -543,6 +717,110 @@ mod tests {
         assert!(r.time.unwrap() > Utc::now());
     }
 
+    // ---- Time input: absolute local stamps ----
+
+    #[test]
+    fn absolute_stamp_round_trips_editor_format() {
+        let t = parse_time_input("2026-08-01 09:00", "08:00").expect("stamp should parse");
+        let local: chrono::DateTime<Local> = t.into();
+        assert_eq!(
+            local.date_naive(),
+            NaiveDate::from_ymd_opt(2026, 8, 1).unwrap()
+        );
+        assert_eq!(local.hour(), 9);
+        assert_eq!(local.minute(), 0);
+    }
+
+    #[test]
+    fn absolute_stamp_with_t_separator() {
+        let local: chrono::DateTime<Local> = parse_time_input("2030-01-15T10:30", "08:00")
+            .expect("stamp should parse")
+            .into();
+        assert_eq!(
+            local.date_naive(),
+            NaiveDate::from_ymd_opt(2030, 1, 15).unwrap()
+        );
+        assert_eq!(local.hour(), 10);
+        assert_eq!(local.minute(), 30);
+    }
+
+    #[test]
+    fn absolute_stamp_without_time_uses_morning_default() {
+        let local: chrono::DateTime<Local> = parse_time_input("2030-01-15", "08:00")
+            .expect("date should parse")
+            .into();
+        assert_eq!(
+            local.date_naive(),
+            NaiveDate::from_ymd_opt(2030, 1, 15).unwrap()
+        );
+        assert_eq!(local.hour(), 8);
+    }
+
+    #[test]
+    fn invalid_absolute_stamp_is_ignored() {
+        assert!(parse_time_input("2026-13-45 09:00", "08:00").is_none());
+    }
+
+    #[test]
+    fn body_classification_does_not_treat_a_date_as_a_reminder() {
+        // Absolute stamps belong to the Time field, not to free-text notes.
+        let r = p("release notes for 2026-08-01 09:00 shipped");
+        assert_eq!(r.note_type, NoteType::Note);
+        assert!(r.time.is_none());
+    }
+
+    // ---- Repeat presets ----
+
+    #[test]
+    fn preset_none_is_empty() {
+        assert_eq!(preset_rrule("none", "", "08:00").as_deref(), Some(""));
+    }
+
+    #[test]
+    fn preset_daily_uses_time_from_time_text() {
+        let rule = preset_rrule("daily", "2030-01-15 10:30", "08:00").unwrap();
+        assert_eq!(rule, "RRULE:FREQ=DAILY;BYHOUR=10;BYMINUTE=30;BYSECOND=0");
+    }
+
+    #[test]
+    fn preset_daily_falls_back_to_default_morning() {
+        let rule = preset_rrule("daily", "", "07:15").unwrap();
+        assert_eq!(rule, "RRULE:FREQ=DAILY;BYHOUR=7;BYMINUTE=15;BYSECOND=0");
+    }
+
+    #[test]
+    fn preset_weekly_uses_anchor_weekday() {
+        // 2030-01-15 is a Tuesday.
+        let rule = preset_rrule("weekly", "2030-01-15 10:30", "08:00").unwrap();
+        assert_eq!(
+            rule,
+            "RRULE:FREQ=WEEKLY;BYDAY=TU;BYHOUR=10;BYMINUTE=30;BYSECOND=0"
+        );
+    }
+
+    #[test]
+    fn preset_monthly_uses_anchor_day() {
+        let rule = preset_rrule("monthly", "2030-01-15 10:30", "08:00").unwrap();
+        assert_eq!(
+            rule,
+            "RRULE:FREQ=MONTHLY;BYMONTHDAY=15;BYHOUR=10;BYMINUTE=30;BYSECOND=0"
+        );
+    }
+
+    #[test]
+    fn preset_weekdays_is_monday_to_friday() {
+        let rule = preset_rrule("weekdays", "2030-01-15 10:30", "08:00").unwrap();
+        assert_eq!(
+            rule,
+            "RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=10;BYMINUTE=30;BYSECOND=0"
+        );
+    }
+
+    #[test]
+    fn preset_unknown_key_is_rejected() {
+        assert!(preset_rrule("fortnightly", "", "08:00").is_none());
+    }
+
     // ---- Time extraction: in <duration> ----
 
     #[test]
@@ -567,7 +845,11 @@ mod tests {
         let before = Utc::now();
         let r = p("review PR in 2 hours");
         let delta_min = (r.time.unwrap() - before).num_minutes();
-        assert!((119..=121).contains(&delta_min), "delta was {}min", delta_min);
+        assert!(
+            (119..=121).contains(&delta_min),
+            "delta was {}min",
+            delta_min
+        );
     }
 
     #[test]
@@ -649,7 +931,11 @@ mod tests {
     fn every_day_daily_rrule() {
         let r = p("take medication every day");
         let rule = r.rrule.expect("rrule should be set");
-        assert!(rule.as_str().contains("FREQ=DAILY"), "rule: {}", rule.as_str());
+        assert!(
+            rule.as_str().contains("FREQ=DAILY"),
+            "rule: {}",
+            rule.as_str()
+        );
     }
 
     #[test]
@@ -661,32 +947,64 @@ mod tests {
     fn every_day_at_time_byhour() {
         let r = p("stand every day at 7am");
         let rule = r.rrule.unwrap();
-        assert!(rule.as_str().contains("BYHOUR=7"), "rule: {}", rule.as_str());
-        assert!(rule.as_str().contains("BYMINUTE=0"), "rule: {}", rule.as_str());
+        assert!(
+            rule.as_str().contains("BYHOUR=7"),
+            "rule: {}",
+            rule.as_str()
+        );
+        assert!(
+            rule.as_str().contains("BYMINUTE=0"),
+            "rule: {}",
+            rule.as_str()
+        );
     }
 
     #[test]
     fn every_monday_weekly_with_byday() {
         let r = p("standup every monday");
         let rule = r.rrule.unwrap();
-        assert!(rule.as_str().contains("FREQ=WEEKLY"), "rule: {}", rule.as_str());
-        assert!(rule.as_str().contains("BYDAY=MO"), "rule: {}", rule.as_str());
+        assert!(
+            rule.as_str().contains("FREQ=WEEKLY"),
+            "rule: {}",
+            rule.as_str()
+        );
+        assert!(
+            rule.as_str().contains("BYDAY=MO"),
+            "rule: {}",
+            rule.as_str()
+        );
     }
 
     #[test]
     fn every_friday_at_time_rrule() {
         let r = p("team lunch every friday at 1pm");
         let rule = r.rrule.unwrap();
-        assert!(rule.as_str().contains("BYDAY=FR"), "rule: {}", rule.as_str());
-        assert!(rule.as_str().contains("BYHOUR=13"), "rule: {}", rule.as_str());
+        assert!(
+            rule.as_str().contains("BYDAY=FR"),
+            "rule: {}",
+            rule.as_str()
+        );
+        assert!(
+            rule.as_str().contains("BYHOUR=13"),
+            "rule: {}",
+            rule.as_str()
+        );
     }
 
     #[test]
     fn every_sunday_evening_rrule() {
         let r = p("family call every sunday at 7pm");
         let rule = r.rrule.unwrap();
-        assert!(rule.as_str().contains("BYDAY=SU"), "rule: {}", rule.as_str());
-        assert!(rule.as_str().contains("BYHOUR=19"), "rule: {}", rule.as_str());
+        assert!(
+            rule.as_str().contains("BYDAY=SU"),
+            "rule: {}",
+            rule.as_str()
+        );
+        assert!(
+            rule.as_str().contains("BYHOUR=19"),
+            "rule: {}",
+            rule.as_str()
+        );
     }
 
     #[test]
@@ -701,8 +1019,16 @@ mod tests {
     fn every_week_at_time_rrule() {
         let r = p("retro every week at 4pm");
         let rule = r.rrule.unwrap();
-        assert!(rule.as_str().contains("FREQ=WEEKLY"), "rule: {}", rule.as_str());
-        assert!(rule.as_str().contains("BYHOUR=16"), "rule: {}", rule.as_str());
+        assert!(
+            rule.as_str().contains("FREQ=WEEKLY"),
+            "rule: {}",
+            rule.as_str()
+        );
+        assert!(
+            rule.as_str().contains("BYHOUR=16"),
+            "rule: {}",
+            rule.as_str()
+        );
     }
 
     // ---- Body cleaning ----
@@ -710,7 +1036,11 @@ mod tests {
     #[test]
     fn at_time_removed_from_body() {
         let r = p("pack calculator in bag at 7pm");
-        assert!(!r.body.to_lowercase().contains("at 7pm"), "body: {:?}", r.body);
+        assert!(
+            !r.body.to_lowercase().contains("at 7pm"),
+            "body: {:?}",
+            r.body
+        );
         assert!(r.body.contains("pack calculator"), "body: {:?}", r.body);
     }
 
@@ -724,13 +1054,22 @@ mod tests {
     #[test]
     fn every_day_removed_from_body() {
         let r = p("take vitamin every day at 8am");
-        assert!(!r.body.to_lowercase().contains("every day"), "body: {:?}", r.body);
+        assert!(
+            !r.body.to_lowercase().contains("every day"),
+            "body: {:?}",
+            r.body
+        );
         assert!(r.body.contains("take vitamin"), "body: {:?}", r.body);
     }
 
     #[test]
     fn body_never_empty_after_stripping() {
-        for text in &["tomorrow morning", "every day at 8am", "at 9pm", "in 5 minutes"] {
+        for text in &[
+            "tomorrow morning",
+            "every day at 8am",
+            "at 9pm",
+            "in 5 minutes",
+        ] {
             let r = p(text);
             assert!(!r.body.is_empty(), "body was empty for '{}'", text);
         }
@@ -759,7 +1098,12 @@ mod tests {
     fn confidence_is_in_range() {
         for text in &["buy milk", "why?", "idea: tabs", "meeting done"] {
             let r = p(text);
-            assert!(r.confidence >= 0.0 && r.confidence <= 1.0, "confidence {} for '{}'", r.confidence, text);
+            assert!(
+                r.confidence >= 0.0 && r.confidence <= 1.0,
+                "confidence {} for '{}'",
+                r.confidence,
+                text
+            );
         }
     }
 
@@ -783,14 +1127,25 @@ mod tests {
 
     #[test]
     fn in_an_hour_type_is_reminder() {
-        assert_eq!(p("check on the deployment in an hour").note_type, NoteType::Reminder);
+        assert_eq!(
+            p("check on the deployment in an hour").note_type,
+            NoteType::Reminder
+        );
     }
 
     #[test]
     fn in_an_hour_stripped_from_body() {
         let r = p("check on the deployment in an hour");
-        assert!(!r.body.to_lowercase().contains("in an hour"), "body: {:?}", r.body);
-        assert!(r.body.contains("check on the deployment"), "body: {:?}", r.body);
+        assert!(
+            !r.body.to_lowercase().contains("in an hour"),
+            "body: {:?}",
+            r.body
+        );
+        assert!(
+            r.body.contains("check on the deployment"),
+            "body: {:?}",
+            r.body
+        );
     }
 
     #[test]
@@ -798,12 +1153,19 @@ mod tests {
         let before = Utc::now();
         let r = p("in a couple of hours remind me to check the oven");
         let delta_min = (r.time.unwrap() - before).num_minutes();
-        assert!((119..=121).contains(&delta_min), "delta was {}min", delta_min);
+        assert!(
+            (119..=121).contains(&delta_min),
+            "delta was {}min",
+            delta_min
+        );
     }
 
     #[test]
     fn in_a_couple_of_hours_is_reminder() {
-        assert_eq!(p("in a couple of hours remind me to check the oven").note_type, NoteType::Reminder);
+        assert_eq!(
+            p("in a couple of hours remind me to check the oven").note_type,
+            NoteType::Reminder
+        );
     }
 
     #[test]
@@ -826,7 +1188,10 @@ mod tests {
 
     #[test]
     fn tonight_type_is_reminder() {
-        assert_eq!(p("tonight watch the football").note_type, NoteType::Reminder);
+        assert_eq!(
+            p("tonight watch the football").note_type,
+            NoteType::Reminder
+        );
     }
 
     #[test]
@@ -839,19 +1204,30 @@ mod tests {
     #[test]
     fn tonight_stripped_from_body() {
         let r = p("tonight put the bins out");
-        assert!(!r.body.to_lowercase().contains("tonight"), "body: {:?}", r.body);
+        assert!(
+            !r.body.to_lowercase().contains("tonight"),
+            "body: {:?}",
+            r.body
+        );
         assert!(r.body.contains("put the bins out"), "body: {:?}", r.body);
     }
 
     #[test]
     fn this_evening_type_is_reminder() {
-        assert_eq!(p("this evening water the plants").note_type, NoteType::Reminder);
+        assert_eq!(
+            p("this evening water the plants").note_type,
+            NoteType::Reminder
+        );
     }
 
     #[test]
     fn this_evening_stripped_from_body() {
         let r = p("this evening water the plants");
-        assert!(!r.body.to_lowercase().contains("this evening"), "body: {:?}", r.body);
+        assert!(
+            !r.body.to_lowercase().contains("this evening"),
+            "body: {:?}",
+            r.body
+        );
         assert!(r.body.contains("water the plants"), "body: {:?}", r.body);
     }
 
@@ -861,34 +1237,61 @@ mod tests {
     fn every_weekday_is_not_matched_by_every_week() {
         let r = p("every weekday morning check email");
         let rule = r.rrule.unwrap();
-        assert!(rule.as_str().contains("BYDAY=MO,TU,WE,TH,FR"), "rule: {}", rule.as_str());
+        assert!(
+            rule.as_str().contains("BYDAY=MO,TU,WE,TH,FR"),
+            "rule: {}",
+            rule.as_str()
+        );
     }
 
     #[test]
     fn every_weekday_type_is_reminder() {
-        assert_eq!(p("every weekday morning check email").note_type, NoteType::Reminder);
+        assert_eq!(
+            p("every weekday morning check email").note_type,
+            NoteType::Reminder
+        );
     }
 
     #[test]
     fn every_weekday_morning_uses_morning_time() {
         let r = p("every weekday morning standup");
         let rule = r.rrule.unwrap();
-        assert!(rule.as_str().contains("BYHOUR=8"), "rule: {}", rule.as_str());
+        assert!(
+            rule.as_str().contains("BYHOUR=8"),
+            "rule: {}",
+            rule.as_str()
+        );
     }
 
     #[test]
     fn every_weekday_at_time_uses_explicit_hour() {
         let r = p("every weekday at 9am standup");
         let rule = r.rrule.unwrap();
-        assert!(rule.as_str().contains("BYDAY=MO,TU,WE,TH,FR"), "rule: {}", rule.as_str());
-        assert!(rule.as_str().contains("BYHOUR=9"), "rule: {}", rule.as_str());
+        assert!(
+            rule.as_str().contains("BYDAY=MO,TU,WE,TH,FR"),
+            "rule: {}",
+            rule.as_str()
+        );
+        assert!(
+            rule.as_str().contains("BYHOUR=9"),
+            "rule: {}",
+            rule.as_str()
+        );
     }
 
     #[test]
     fn every_weekday_body_cleaned() {
         let r = p("every weekday morning check email");
-        assert!(!r.body.to_lowercase().contains("every weekday"), "body: {:?}", r.body);
-        assert!(!r.body.to_lowercase().contains("morning"), "body: {:?}", r.body);
+        assert!(
+            !r.body.to_lowercase().contains("every weekday"),
+            "body: {:?}",
+            r.body
+        );
+        assert!(
+            !r.body.to_lowercase().contains("morning"),
+            "body: {:?}",
+            r.body
+        );
         assert!(r.body.contains("check email"), "body: {:?}", r.body);
     }
 
@@ -897,14 +1300,26 @@ mod tests {
         // "every weekday" should NOT produce a BYDAY equal to the current weekday
         let r = p("every weekday morning check email");
         let rule = r.rrule.unwrap();
-        assert!(!rule.as_str().contains("BYDAY=MO;"), "every_week matched weekday: {}", rule.as_str());
+        assert!(
+            !rule.as_str().contains("BYDAY=MO;"),
+            "every_week matched weekday: {}",
+            rule.as_str()
+        );
     }
 
     #[test]
     fn every_week_still_works_after_fix() {
         let r = p("retro every week at 4pm");
         let rule = r.rrule.unwrap();
-        assert!(rule.as_str().contains("FREQ=WEEKLY"), "rule: {}", rule.as_str());
-        assert!(rule.as_str().contains("BYHOUR=16"), "rule: {}", rule.as_str());
+        assert!(
+            rule.as_str().contains("FREQ=WEEKLY"),
+            "rule: {}",
+            rule.as_str()
+        );
+        assert!(
+            rule.as_str().contains("BYHOUR=16"),
+            "rule: {}",
+            rule.as_str()
+        );
     }
 }
