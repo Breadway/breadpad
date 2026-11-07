@@ -1718,5 +1718,53 @@
     "expected_body": "how about we use environment variables",
     "expected_rrule": null,
     "notes": "how about question"
+  },
+  {
+    "input": "Ideas for the weekend: build a bookshelf",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": "Ideas for the weekend: build a bookshelf",
+    "expected_rrule": null,
+    "notes": "PAD-20: explicit plural 'Ideas' label must win over the generic note fallback"
+  },
+  {
+    "input": "idea: buy a bookshelf",
+    "expected_type": "idea",
+    "expected_time": null,
+    "expected_body": "idea: buy a bookshelf",
+    "expected_rrule": null,
+    "notes": "PAD-20: explicit idea prefix wins over the 'buy ' todo anchor"
+  },
+  {
+    "input": "ideal temperature is 20C",
+    "expected_type": "note",
+    "expected_time": null,
+    "expected_body": "ideal temperature is 20C",
+    "expected_rrule": null,
+    "notes": "PAD-20: 'ideal' is not an idea label"
+  },
+  {
+    "input": "buy a bookshelf",
+    "expected_type": "todo",
+    "expected_time": null,
+    "expected_body": "buy a bookshelf",
+    "expected_rrule": null,
+    "notes": "PAD-20: clear task stays a todo"
+  },
+  {
+    "input": "the bookshelf is assembled",
+    "expected_type": "note",
+    "expected_time": null,
+    "expected_body": "the bookshelf is assembled",
+    "expected_rrule": null,
+    "notes": "PAD-20: clear observation stays a note"
+  },
+  {
+    "input": "assemble the bookshelf at 5pm",
+    "expected_type": "reminder",
+    "expected_time": "17:00",
+    "expected_body": "assemble the bookshelf",
+    "expected_rrule": null,
+    "notes": "PAD-20: clear timed reminder stays a reminder"
   }
 ]

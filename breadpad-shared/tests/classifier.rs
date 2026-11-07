@@ -81,6 +81,28 @@ fn classify_note_via_fallback() {
 }
 
 #[test]
+fn classify_plural_idea_label_via_fallback() {
+    let mut c = cl();
+    let r = c.classify("Ideas for the weekend: build a bookshelf");
+    assert_eq!(r.note_type, NoteType::Idea);
+    // High enough that Tier 1 returns before the ONNX model is consulted.
+    assert!(r.confidence >= 0.82, "confidence was {}", r.confidence);
+}
+
+#[test]
+fn classify_clear_bookshelf_cases_via_fallback() {
+    let mut c = cl();
+    assert_eq!(c.classify("buy a bookshelf").note_type, NoteType::Todo);
+    assert_eq!(
+        c.classify("the bookshelf is assembled").note_type,
+        NoteType::Note
+    );
+    let reminder = c.classify("assemble the bookshelf at 5pm");
+    assert_eq!(reminder.note_type, NoteType::Reminder);
+    assert!(reminder.time.is_some());
+}
+
+#[test]
 fn classify_recurrence_via_fallback() {
     let mut c = cl();
     let r = c.classify("standup every monday at 9am");
