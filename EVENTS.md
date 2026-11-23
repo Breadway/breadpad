@@ -1,4 +1,4 @@
-# breadpad: bread event integration
+# pad: bread event integration
 
 breadpad is a standalone capture popup: it works exactly the same with or
 without `breadd` running. When breadd *is* present, the `breadpad` binary
@@ -48,7 +48,7 @@ bread.spawn(function()
 end)
 ```
 
-### Not implemented: extra verbs
+## Not implemented
 
 There is no `snooze` / `done` / `fire` command verb. Reminder fire
 already exists as `breadpad fire <id>` (systemd user timer), and
