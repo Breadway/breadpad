@@ -48,7 +48,7 @@ bread.spawn(function()
 end)
 ```
 
-### Not implemented: extra verbs
+## Not implemented
 
 There is no `snooze` / `done` / `fire` command verb. Reminder fire
 already exists as `breadpad fire <id>` (systemd user timer), and
