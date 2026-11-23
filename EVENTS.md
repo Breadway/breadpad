@@ -1,4 +1,4 @@
-# breadpad: bread event integration
+# pad: bread event integration
 
 breadpad is a standalone capture popup: it works exactly the same with or
 without `breadd` running. When breadd *is* present, the `breadpad` binary
